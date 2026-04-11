@@ -51,13 +51,13 @@ export const deleteServer = (name) =>
 export const getAlerts = (params) => fetchJSON('/alerts' + toQuery(params))
 export const acknowledgeAlert = (id) =>
   fetchJSON(`/alerts/${id}/acknowledge`, { method: 'POST' })
-export const getAlertRules = () => fetchJSON('/alert-rules')
+export const getAlertRules = () => fetchJSON('/alerts/rules')
 export const createAlertRule = (data) =>
-  fetchJSON('/alert-rules', { method: 'POST', body: JSON.stringify(data) })
+  fetchJSON('/alerts/rules', { method: 'POST', body: JSON.stringify(data) })
 export const updateAlertRule = (id, data) =>
-  fetchJSON(`/alert-rules/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  fetchJSON(`/alerts/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 export const deleteAlertRule = (id) =>
-  fetchJSON(`/alert-rules/${id}`, { method: 'DELETE' })
+  fetchJSON(`/alerts/rules/${id}`, { method: 'DELETE' })
 
 // Collector
 export const getCollectorStatus = () => fetchJSON('/collector/status')
@@ -68,4 +68,4 @@ export const updateCollectorConfig = (data) =>
 
 // Stats / Cleanup
 export const getStats = () => fetchJSON('/stats')
-export const triggerCleanup = () => fetchJSON('/cleanup', { method: 'POST' })
+export const triggerCleanup = () => fetchJSON('/stats/cleanup', { method: 'POST' })

@@ -25,10 +25,11 @@ const COLLECT_SCRIPT = join(ROOT_DIR, 'collect.sh');
 
 export const db = createDb(DB_PATH);
 
-function onRunComplete() {
+function onRunComplete({ lastRunAt, lastDurationMs } = {}) {
+  const ts = lastRunAt || new Date().toISOString();
   try {
     const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = ts.slice(0, 10); // YYYY-MM-DD
 
     const servers = config.servers || [];
     for (const server of servers) {
@@ -37,6 +38,9 @@ function onRunComplete() {
       if (existsSync(logDir)) {
         ingestDirectory(db, logDir);
       }
+      // Record successful run for each enabled server
+      db.prepare('INSERT INTO collector_runs (ts_utc, server, status, duration_ms, error) VALUES (?, ?, ?, ?, ?)')
+        .run(ts, server.name, 'ok', lastDurationMs || 0, null);
     }
 
     evaluateAlerts(db);

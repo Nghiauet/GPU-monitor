@@ -74,10 +74,13 @@ export async function ingestDirectory(db, dirPath) {
     const rows = await readJsonlFile(filePath);
     if (rows.length === 0) continue;
 
-    // Prepare dedup check statement
+    // Dedup check: if any row with ts_utc + server already exists, skip the entire file
+    const firstRow = rows[0];
     const dedupStmt = db.prepare(
       `SELECT 1 FROM ${table} WHERE ts_utc = ? AND server = ? LIMIT 1`
     );
+    const alreadyExists = dedupStmt.get(firstRow.ts_utc, firstRow.server);
+    if (alreadyExists) continue;
 
     // Prepare insert statement
     const placeholders = columns.map(() => '?').join(', ');
@@ -85,14 +88,10 @@ export async function ingestDirectory(db, dirPath) {
       `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`
     );
 
-    // Batch insert in a transaction
+    // Batch insert all rows in a transaction
     const insertMany = db.transaction((rows) => {
       let inserted = 0;
       for (const row of rows) {
-        // Dedup check: skip if ts_utc + server already exists
-        const exists = dedupStmt.get(row.ts_utc, row.server);
-        if (exists) continue;
-
         const values = columns.map((col) => {
           const val = row[col];
           return val === undefined ? null : val;

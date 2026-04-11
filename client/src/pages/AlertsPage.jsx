@@ -9,16 +9,17 @@ import {
 } from '../api.js'
 
 const CONDITION_TYPES = [
-  { value: 'gpu_util_pct', label: 'GPU Utilization %' },
-  { value: 'mem_util_pct', label: 'Memory Utilization %' },
-  { value: 'temp_c', label: 'Temperature °C' },
-  { value: 'cpu_user_pct', label: 'CPU User %' },
-  { value: 'load_1', label: 'Load Average 1m' },
+  { value: 'user_gpu_mem_exceeds', label: 'User GPU Memory Exceeds' },
+  { value: 'user_gpu_count_exceeds', label: 'User GPU Count Exceeds' },
+  { value: 'gpu_idle', label: 'GPU Idle' },
+  { value: 'server_load_exceeds', label: 'Server Load Exceeds' },
+  { value: 'server_unreachable', label: 'Server Unreachable' },
+  { value: 'gpu_temp_exceeds', label: 'GPU Temperature Exceeds' },
 ]
 
 const EMPTY_RULE = {
   name: '',
-  condition_type: 'gpu_util_pct',
+  condition_type: 'user_gpu_mem_exceeds',
   target: '',
   threshold: '',
   duration_min: '',
