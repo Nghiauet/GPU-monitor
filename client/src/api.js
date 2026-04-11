@@ -27,6 +27,8 @@ export const getUsers = (params) => fetchJSON('/users' + toQuery(params))
 export const getUser = (username) => fetchJSON(`/users/${encodeURIComponent(username)}`)
 export const getUserHistory = (username, params) =>
   fetchJSON(`/users/${encodeURIComponent(username)}/history` + toQuery(params))
+export const getUserJobs = (username, params) =>
+  fetchJSON(`/users/${encodeURIComponent(username)}/jobs` + toQuery(params))
 
 // GPUs
 export const getGpus = (params) => fetchJSON('/gpus' + toQuery(params))

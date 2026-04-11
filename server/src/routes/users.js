@@ -62,6 +62,16 @@ export function usersRouter(db) {
       }
 
       const rows = db.prepare(sql).all(...params);
+
+      // Enrich with last_active timestamp per user
+      const lastActiveStmt = db.prepare(
+        'SELECT MAX(ts_utc) AS last_active FROM gpu_processes WHERE user = ?'
+      );
+      for (const row of rows) {
+        const la = lastActiveStmt.get(row.user);
+        row.last_active = la?.last_active || null;
+      }
+
       res.json(rows);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -89,6 +99,52 @@ export function usersRouter(db) {
       `).all(username, username);
 
       res.json({ user: username, processes, rollups });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/users/:username/jobs
+   * Job history: distinct PIDs with first/last seen, derived from gpu_processes snapshots.
+   * A "job" is a unique (pid, server) pair. If last_seen is recent, the job is active.
+   * Query params: from, to
+   */
+  router.get('/:username/jobs', (req, res) => {
+    try {
+      const { username } = req.params;
+      const now = new Date();
+      const defaultFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+      const defaultTo = now.toISOString();
+      const from = req.query.from || defaultFrom;
+      const to = req.query.to || defaultTo;
+
+      const jobs = db.prepare(`
+        SELECT
+          pid,
+          server,
+          gpu_index,
+          process_name,
+          cmd,
+          MAX(gpu_mem_mb) AS peak_gpu_mem_mb,
+          AVG(cpu_pct) AS avg_cpu_pct,
+          MIN(ts_utc) AS first_seen,
+          MAX(ts_utc) AS last_seen,
+          COUNT(*) AS snapshot_count,
+          (CAST((julianday(MAX(ts_utc)) - julianday(MIN(ts_utc))) * 86400 AS INTEGER)) AS duration_sec
+        FROM gpu_processes
+        WHERE user = ? AND ts_utc BETWEEN ? AND ?
+        GROUP BY pid, server
+        ORDER BY last_seen DESC
+      `).all(username, from, to);
+
+      // Mark active: last_seen within 2 minutes of now
+      const cutoff = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
+      for (const job of jobs) {
+        job.active = job.last_seen >= cutoff;
+      }
+
+      res.json(jobs);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
