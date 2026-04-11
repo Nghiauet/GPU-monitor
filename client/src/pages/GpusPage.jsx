@@ -3,6 +3,7 @@ import { getGpus, getGpuHistory, getServers } from '../api.js'
 import GpuCard from '../components/GpuCard.jsx'
 import TimeRangePicker from '../components/TimeRangePicker.jsx'
 import UsageChart from '../components/UsageChart.jsx'
+import CopyButton from '../components/CopyButton.jsx'
 
 export default function GpusPage() {
   const [gpus, setGpus] = useState([])
@@ -91,7 +92,16 @@ export default function GpusPage() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>GPUs</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>GPUs</h1>
+          <CopyButton getText={() => {
+            if (gpus.length === 0) return 'No GPU data'
+            const lines = gpus.map(g =>
+              `${g.server} GPU ${g.gpu_index} (${g.gpu_name}): util ${g.gpu_util_pct}%, VRAM ${Math.round(g.mem_used_mb/1024)}/${Math.round(g.mem_total_mb/1024)} GB, temp ${g.temp_c}C`
+            )
+            return `GPUs (${new Date().toISOString()})\n${lines.join('\n')}`
+          }} />
+        </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <select
             value={serverFilter}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getUsers, getServers } from '../api.js'
 import UserCard from '../components/UserCard.jsx'
 import TimeRangePicker from '../components/TimeRangePicker.jsx'
+import CopyButton from '../components/CopyButton.jsx'
 
 export default function UsersPage() {
   const [users, setUsers] = useState([])
@@ -55,7 +56,16 @@ export default function UsersPage() {
     <div>
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Active GPU Users</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Active GPU Users</h1>
+          <CopyButton getText={() => {
+            if (users.length === 0) return 'No active GPU users'
+            const lines = users.map(u =>
+              `${u.user}: ${u.gpu_count} GPUs, ${(u.total_gpu_mem_mb / 1024).toFixed(1)} GB VRAM, CPU avg ${Number(u.avg_cpu_pct).toFixed(1)}%, servers: ${u.servers || '—'}`
+            )
+            return `Active GPU Users (${new Date().toISOString()})\n${lines.join('\n')}`
+          }} />
+        </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           {/* Server filter */}
           <select
@@ -98,7 +108,7 @@ export default function UsersPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {users.map((user, i) => (
-            <UserCard key={user.username} user={user} index={i} />
+            <UserCard key={user.user} user={user} index={i} />
           ))}
         </div>
       )}

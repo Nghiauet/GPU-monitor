@@ -12,7 +12,7 @@ export default function UserCard({ user, index = 0 }) {
 
   return (
     <div
-      onClick={() => navigate(`/users/${encodeURIComponent(user.username)}`)}
+      onClick={() => navigate(`/users/${encodeURIComponent(user.user)}`)}
       style={{
         background: '#16213e',
         border: '1px solid #2a3a5c',
@@ -27,7 +27,7 @@ export default function UserCard({ user, index = 0 }) {
     >
       <div style={{ marginBottom: '10px' }}>
         <span style={{ color: borderColor, fontWeight: 700, fontSize: '15px' }}>
-          {user.username}
+          {user.user}
         </span>
       </div>
       <div style={{
@@ -51,9 +51,9 @@ export default function UserCard({ user, index = 0 }) {
         </div>
         <div>
           <span style={{ color: '#e0e0e0', fontWeight: 600 }}>
-            {user.server_count ?? (user.servers?.length ?? 0)}
+            {user.servers || '—'}
           </span>{' '}
-          Servers
+
         </div>
         <div>
           <span style={{ color: '#e0e0e0', fontWeight: 600 }}>

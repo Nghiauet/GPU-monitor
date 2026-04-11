@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import CopyButton from '../components/CopyButton.jsx'
 import {
   getAlerts,
   acknowledgeAlert,
@@ -127,7 +128,18 @@ export default function AlertsPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0', marginBottom: '24px' }}>Alerts</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Alerts</h1>
+        <CopyButton getText={() => {
+          const lines = [`Alerts (${new Date().toISOString()})`]
+          const unack = alerts.filter(a => !a.acknowledged)
+          lines.push(`Unacknowledged: ${unack.length}`)
+          unack.forEach(a => lines.push(`  [${a.ts_utc}] ${a.message}`))
+          lines.push(`Rules: ${rules.length}`)
+          rules.forEach(r => lines.push(`  ${r.name}: ${r.condition_type} target=${r.target} threshold=${r.threshold} duration=${r.duration_min}min ${r.enabled ? 'ON' : 'OFF'}`))
+          return lines.join('\n')
+        }} />
+      </div>
 
       {/* Triggered Alerts */}
       <section style={{ marginBottom: '32px' }}>

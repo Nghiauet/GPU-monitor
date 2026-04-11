@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import CopyButton from '../components/CopyButton.jsx'
 import {
   getCollectorStatus,
   startCollector,
@@ -158,7 +159,25 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0', marginBottom: '24px' }}>Settings</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Settings</h1>
+        <CopyButton getText={() => {
+          const lines = [`Settings (${new Date().toISOString()})`]
+          if (status) {
+            lines.push(`Collector: ${status.running ? 'Running' : 'Stopped'}, interval ${status.intervalSeconds}s`)
+            if (status.lastRunAt) lines.push(`  Last run: ${status.lastRunAt} (${status.lastDurationMs}ms)${status.lastError ? ' ERROR: ' + status.lastError : ''}`)
+          }
+          lines.push(`Servers: ${servers.length}`)
+          servers.forEach(s => lines.push(`  ${s.name} (${s.hostname}): ${s.enabled ? 'enabled' : 'disabled'}`))
+          if (stats) {
+            lines.push('Data:')
+            Object.entries(stats.tables || {}).forEach(([t, v]) => {
+              if (v.count != null) lines.push(`  ${t}: ${v.count} rows`)
+            })
+          }
+          return lines.join('\n')
+        }} />
+      </div>
 
       {/* Collector */}
       <Section title="COLLECTOR">

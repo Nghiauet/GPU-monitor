@@ -3,6 +3,7 @@ import { getServers, getServerHistory } from '../api.js'
 import ServerCard from '../components/ServerCard.jsx'
 import TimeRangePicker from '../components/TimeRangePicker.jsx'
 import UsageChart from '../components/UsageChart.jsx'
+import CopyButton from '../components/CopyButton.jsx'
 
 export default function ServersPage() {
   const [servers, setServers] = useState([])
@@ -74,7 +75,18 @@ export default function ServersPage() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Servers</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Servers</h1>
+          <CopyButton getText={() => {
+            if (servers.length === 0) return 'No server data'
+            const lines = servers.map(s => {
+              const hs = s.host_summary
+              if (!hs) return `${s.name} (${s.hostname}): no data`
+              return `${s.name} (${hs.hostname || s.hostname}): load ${hs.load_1}/${hs.load_5}/${hs.load_15}, CPU usr ${hs.cpu_user_pct}% idle ${hs.cpu_idle_pct}%, mem ${Math.round(hs.mem_used_mb/1024)}/${Math.round(hs.mem_total_mb/1024)} GB`
+            })
+            return `Servers (${new Date().toISOString()})\n${lines.join('\n')}`
+          }} />
+        </div>
         <TimeRangePicker value={hours} onChange={setHours} />
       </div>
 

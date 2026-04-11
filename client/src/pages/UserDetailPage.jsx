@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { getUser, getUserHistory } from '../api.js'
 import UsageChart from '../components/UsageChart.jsx'
 import TimeRangePicker from '../components/TimeRangePicker.jsx'
+import CopyButton from '../components/CopyButton.jsx'
 
 function fmtMem(mb) {
   if (mb == null) return '—'
@@ -71,8 +72,8 @@ export default function UserDetailPage() {
     )
   }
 
-  const processes = user?.processes || user?.current_processes || []
-  const servers = user?.servers || {}
+  const processes = user?.processes || []
+  const rollups = user?.rollups || []
 
   return (
     <div>
@@ -83,31 +84,46 @@ export default function UserDetailPage() {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0 20px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e94560' }}>
-          {username}
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e94560' }}>
+            {username}
+          </h1>
+          <CopyButton getText={() => {
+            const lines = [`User: ${username} (${new Date().toISOString()})`]
+            rollups.forEach(r => {
+              lines.push(`  ${r.server}: ${r.gpu_count} GPUs, ${fmtMem(r.total_gpu_mem_mb)} VRAM, CPU avg ${Number(r.avg_cpu_pct).toFixed(1)}%`)
+            })
+            if (processes.length > 0) {
+              lines.push('Processes:')
+              processes.forEach(p => {
+                lines.push(`  PID ${p.pid} on ${p.server} GPU ${p.gpu_index}: ${fmtMem(p.gpu_mem_mb)} VRAM, CPU ${p.cpu_pct}%, ${fmtElapsed(p.elapsed_sec)}, cmd: ${p.cmd || '—'}`)
+              })
+            }
+            return lines.join('\n')
+          }} />
+        </div>
         <TimeRangePicker value={hours} onChange={setHours} />
       </div>
 
       {/* Server rollup cards */}
-      {Object.entries(servers).length > 0 && (
+      {rollups.length > 0 && (
         <div style={{ marginBottom: '24px' }}>
           <h2 style={{ fontSize: '14px', color: '#888', marginBottom: '10px', fontWeight: 600 }}>
             BY SERVER
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
-            {Object.entries(servers).map(([sname, sdata]) => (
-              <div key={sname} style={{
+            {rollups.map((r) => (
+              <div key={r.server} style={{
                 background: '#16213e',
                 border: '1px solid #2a3a5c',
                 borderRadius: '8px',
                 padding: '12px 14px',
               }}>
-                <div style={{ color: '#4fc3f7', fontWeight: 600, marginBottom: '8px' }}>{sname}</div>
+                <div style={{ color: '#4fc3f7', fontWeight: 600, marginBottom: '8px' }}>{r.server}</div>
                 <div style={{ fontSize: '12px', color: '#888', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div>GPUs: <span style={{ color: '#e0e0e0' }}>{sdata.gpu_count ?? 0}</span></div>
-                  <div>VRAM: <span style={{ color: '#e0e0e0' }}>{fmtMem(sdata.total_gpu_mem_mb)}</span></div>
-                  <div>CPU: <span style={{ color: '#e0e0e0' }}>{sdata.avg_cpu_pct != null ? `${Number(sdata.avg_cpu_pct).toFixed(1)}%` : '—'}</span></div>
+                  <div>GPUs: <span style={{ color: '#e0e0e0' }}>{r.gpu_count ?? 0}</span></div>
+                  <div>VRAM: <span style={{ color: '#e0e0e0' }}>{fmtMem(r.total_gpu_mem_mb)}</span></div>
+                  <div>CPU: <span style={{ color: '#e0e0e0' }}>{r.avg_cpu_pct != null ? `${Number(r.avg_cpu_pct).toFixed(1)}%` : '—'}</span></div>
                 </div>
               </div>
             ))}
@@ -157,7 +173,7 @@ export default function UserDetailPage() {
                     <td style={{ padding: '8px 12px', color: '#e0e0e0' }}>{p.gpu_index ?? p.gpu}</td>
                     <td style={{ padding: '8px 12px', color: '#e0e0e0' }}>{fmtMem(p.gpu_mem_mb)}</td>
                     <td style={{ padding: '8px 12px', color: '#e0e0e0' }}>{p.cpu_pct != null ? `${p.cpu_pct}%` : '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#888' }}>{fmtElapsed(p.elapsed_secs)}</td>
+                    <td style={{ padding: '8px 12px', color: '#888' }}>{fmtElapsed(p.elapsed_sec)}</td>
                     <td style={{ padding: '8px 12px', color: '#888', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {p.command || p.cmd || '—'}
                     </td>
