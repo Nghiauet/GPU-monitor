@@ -23,16 +23,16 @@ export function gpusRouter(db) {
       if (server) {
         sql = `
           SELECT * FROM gpu_devices
-          WHERE ts_utc = (SELECT MAX(ts_utc) FROM gpu_devices)
-            AND server = ?
-          ORDER BY server, gpu_index
+          WHERE server = ?
+            AND ts_utc = (SELECT MAX(ts_utc) FROM gpu_devices WHERE server = ?)
+          ORDER BY gpu_index
         `;
-        params = [server];
+        params = [server, server];
       } else {
         sql = `
-          SELECT * FROM gpu_devices
-          WHERE ts_utc = (SELECT MAX(ts_utc) FROM gpu_devices)
-          ORDER BY server, gpu_index
+          SELECT * FROM gpu_devices g
+          WHERE g.ts_utc = (SELECT MAX(ts_utc) FROM gpu_devices WHERE server = g.server)
+          ORDER BY g.server, g.gpu_index
         `;
         params = [];
       }

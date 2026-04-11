@@ -36,13 +36,13 @@ export function usersRouter(db) {
             AVG(avg_cpu_pct) AS avg_cpu_pct,
             MAX(max_cpu_pct) AS max_cpu_pct,
             GROUP_CONCAT(DISTINCT server) AS servers
-          FROM user_rollups
-          WHERE ts_utc = (SELECT MAX(ts_utc) FROM user_rollups WHERE ts_utc BETWEEN ? AND ?)
-            AND server = ?
+          FROM user_rollups r
+          WHERE server = ?
+            AND r.ts_utc = (SELECT MAX(ts_utc) FROM user_rollups WHERE server = r.server AND ts_utc BETWEEN ? AND ?)
           GROUP BY user
           ORDER BY total_gpu_mem_mb DESC
         `;
-        params = [from, to, server];
+        params = [server, from, to];
       } else {
         sql = `
           SELECT
@@ -53,8 +53,8 @@ export function usersRouter(db) {
             AVG(avg_cpu_pct) AS avg_cpu_pct,
             MAX(max_cpu_pct) AS max_cpu_pct,
             GROUP_CONCAT(DISTINCT server) AS servers
-          FROM user_rollups
-          WHERE ts_utc = (SELECT MAX(ts_utc) FROM user_rollups WHERE ts_utc BETWEEN ? AND ?)
+          FROM user_rollups r
+          WHERE r.ts_utc = (SELECT MAX(ts_utc) FROM user_rollups WHERE server = r.server AND ts_utc BETWEEN ? AND ?)
           GROUP BY user
           ORDER BY total_gpu_mem_mb DESC
         `;
