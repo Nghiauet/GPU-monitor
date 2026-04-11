@@ -1,0 +1,20 @@
+services:
+  gpu-monitor:
+    build: .
+    container_name: gpu-monitor
+    restart: unless-stopped
+    ports:
+      - "8267:3001"
+    volumes:
+      # Persistent SQLite database
+      - ./data:/data
+      # Collector logs
+      - ./logs:/app/logs
+      # Config file (edit on host, changes picked up live)
+      - ./config.json:/app/config.json
+      # SSH keys for collector to reach GPU servers
+      - /home/vagrant/.ssh:/root/.ssh-mount:ro
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DB_PATH=/data/gpu_monitor.db

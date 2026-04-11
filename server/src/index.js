@@ -20,7 +20,7 @@ const __dirname = dirname(__filename);
 
 export const ROOT_DIR = resolve(__dirname, '..', '..');
 const CONFIG_PATH = join(ROOT_DIR, 'config.json');
-const DB_PATH = join(ROOT_DIR, 'gpu_monitor.db');
+const DB_PATH = process.env.DB_PATH || join(ROOT_DIR, 'gpu_monitor.db');
 const COLLECT_SCRIPT = join(ROOT_DIR, 'collect.sh');
 
 export const db = createDb(DB_PATH);
@@ -91,6 +91,7 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`GPU Monitor server listening on port ${PORT}`);
     console.log(`ROOT_DIR: ${ROOT_DIR}`);
+    collector.start();
   });
 }
 

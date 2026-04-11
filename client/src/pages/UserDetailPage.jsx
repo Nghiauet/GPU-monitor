@@ -4,27 +4,9 @@ import { getUser, getUserHistory, getUserJobs } from '../api.js'
 import UsageChart from '../components/UsageChart.jsx'
 import TimeRangePicker from '../components/TimeRangePicker.jsx'
 import CopyButton from '../components/CopyButton.jsx'
-
-function fmtMem(mb) {
-  if (mb == null) return '—'
-  return `${(mb / 1024).toFixed(1)} GB`
-}
-
-function fmtElapsed(secs) {
-  if (secs == null || secs === 0) return '—'
-  if (secs < 60) return `${secs}s`
-  if (secs < 3600) return `${Math.floor(secs / 60)}m`
-  const h = Math.floor(secs / 3600)
-  const m = Math.floor((secs % 3600) / 60)
-  if (h < 24) return `${h}h ${m}m`
-  const d = Math.floor(h / 24)
-  return `${d}d ${h % 24}h`
-}
-
-function fmtTime(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
+import RefreshButton from '../components/RefreshButton.jsx'
+import { fmtMem, fmtElapsed, fmtTime, tabStyle } from '../utils/fmt.js'
+import { useRefreshKey } from '../hooks/useRefreshKey.js'
 
 export default function UserDetailPage() {
   const { username } = useParams()
@@ -35,6 +17,7 @@ export default function UserDetailPage() {
   const [tab, setTab] = useState('current') // 'current' | 'jobs'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [refreshKey, refresh] = useRefreshKey()
 
   useEffect(() => {
     let cancelled = false
@@ -69,7 +52,7 @@ export default function UserDetailPage() {
       cancelled = true
       clearInterval(id)
     }
-  }, [username, hours])
+  }, [username, hours, refreshKey])
 
   if (loading) {
     return <div style={{ color: '#888', padding: '40px', textAlign: 'center' }}>Loading...</div>
@@ -89,17 +72,6 @@ export default function UserDetailPage() {
   const activeJobs = jobs.filter(j => j.active)
   const pastJobs = jobs.filter(j => !j.active)
 
-  const tabStyle = (active) => ({
-    padding: '6px 16px',
-    fontSize: '13px',
-    border: 'none',
-    borderBottom: active ? '2px solid #e94560' : '2px solid transparent',
-    background: 'transparent',
-    color: active ? '#e0e0e0' : '#888',
-    cursor: 'pointer',
-    fontWeight: active ? 600 : 400,
-  })
-
   return (
     <div>
       <Link to="/users" style={{ color: '#4fc3f7', fontSize: '13px' }}>← Back to Users</Link>
@@ -108,6 +80,7 @@ export default function UserDetailPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e94560' }}>{username}</h1>
+          <RefreshButton onRefresh={refresh} />
           <CopyButton getText={() => {
             const lines = [`User: ${username} (${new Date().toISOString()})`]
             rollups.forEach(r => {

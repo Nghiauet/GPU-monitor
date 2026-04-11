@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import CopyButton from '../components/CopyButton.jsx'
+import RefreshButton from '../components/RefreshButton.jsx'
+import { useRefreshKey } from '../hooks/useRefreshKey.js'
 import {
   getCollectorStatus,
   startCollector,
@@ -65,6 +67,7 @@ export default function SettingsPage() {
   const [serverError, setServerError] = useState('')
   const [cleanupMsg, setCleanupMsg] = useState('')
   const [saving, setSaving] = useState('')
+  const [refreshKey, refresh] = useRefreshKey()
 
   useEffect(() => {
     async function load() {
@@ -81,7 +84,7 @@ export default function SettingsPage() {
       } catch {}
     }
     load()
-  }, [])
+  }, [refreshKey])
 
   async function handleCollectorToggle() {
     setSaving('collector')
@@ -161,6 +164,7 @@ export default function SettingsPage() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
         <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Settings</h1>
+        <RefreshButton onRefresh={refresh} />
         <CopyButton getText={() => {
           const lines = [`Settings (${new Date().toISOString()})`]
           if (status) {

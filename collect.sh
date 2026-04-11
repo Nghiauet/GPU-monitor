@@ -226,9 +226,6 @@ ssh_run() {
   ssh -o ConnectTimeout=10 \
       -o StrictHostKeyChecking=no \
       -o BatchMode=yes \
-      -o ControlMaster=auto \
-      -o "ControlPath=${ctl}" \
-      -o ControlPersist=60 \
       -i "${key_resolved}" \
       "${user}@${host}" \
       "${cmd}"
@@ -240,12 +237,8 @@ ssh_close() {
   local host="$2"
   local key="$3"
   local ctl="$4"
-  local key_resolved
-  key_resolved="$(resolve_path "${key}")"
-  ssh -O exit \
-      -o ControlPath="${ctl}" \
-      -i "${key_resolved}" \
-      "${user}@${host}" 2>/dev/null || true
+  # ControlMaster disabled for Docker compatibility; nothing to close
+  true
 }
 
 # ---------------------------------------------------------------------------
@@ -668,6 +661,8 @@ etime_to_seconds() {
   elif [[ "${n}" -eq 1 ]]; then
     secs="${parts[0]}"
   fi
+  # Strip leading zeros to prevent bash from treating values as octal
+  days=$((10#$days)) hours=$((10#$hours)) mins=$((10#$mins)) secs=$((10#$secs))
   printf '%d' $(( days*86400 + hours*3600 + mins*60 + secs ))
 }
 

@@ -4,6 +4,8 @@ import GpuCard from '../components/GpuCard.jsx'
 import TimeRangePicker from '../components/TimeRangePicker.jsx'
 import UsageChart from '../components/UsageChart.jsx'
 import CopyButton from '../components/CopyButton.jsx'
+import RefreshButton from '../components/RefreshButton.jsx'
+import { useRefreshKey } from '../hooks/useRefreshKey.js'
 
 export default function GpusPage() {
   const [gpus, setGpus] = useState([])
@@ -15,6 +17,7 @@ export default function GpusPage() {
   const [selected, setSelected] = useState(null) // { server, gpu_index }
   const [chartData, setChartData] = useState([])
   const [chartLoading, setChartLoading] = useState(false)
+  const [refreshKey, refresh] = useRefreshKey()
 
   // Load servers once
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function GpusPage() {
       cancelled = true
       clearInterval(id)
     }
-  }, [serverFilter])
+  }, [serverFilter, refreshKey])
 
   // Load chart when GPU selected
   useEffect(() => {
@@ -94,6 +97,7 @@ export default function GpusPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>GPUs</h1>
+          <RefreshButton onRefresh={refresh} />
           <CopyButton getText={() => {
             if (gpus.length === 0) return 'No GPU data'
             const lines = gpus.map(g =>

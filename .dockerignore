@@ -1,0 +1,13 @@
+node_modules
+client/node_modules
+server/node_modules
+client/dist
+gpu_monitor.db
+gpu_monitor.db-shm
+gpu_monitor.db-wal
+logs/
+collector.log
+.git
+docs/
+*.md
+.playwright-mcp/

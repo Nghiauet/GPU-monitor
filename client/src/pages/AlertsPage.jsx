@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import CopyButton from '../components/CopyButton.jsx'
+import RefreshButton from '../components/RefreshButton.jsx'
+import { useRefreshKey } from '../hooks/useRefreshKey.js'
 import {
   getAlerts,
   acknowledgeAlert,
@@ -42,6 +44,7 @@ export default function AlertsPage() {
   const [form, setForm] = useState(EMPTY_RULE)
   const [formError, setFormError] = useState('')
   const [formSaving, setFormSaving] = useState(false)
+  const [refreshKey, refresh] = useRefreshKey()
 
   useEffect(() => {
     let cancelled = false
@@ -65,7 +68,7 @@ export default function AlertsPage() {
       cancelled = true
       clearInterval(id)
     }
-  }, [])
+  }, [refreshKey])
 
   async function handleAcknowledge(id) {
     try {
@@ -130,6 +133,7 @@ export default function AlertsPage() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
         <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Alerts</h1>
+        <RefreshButton onRefresh={refresh} />
         <CopyButton getText={() => {
           const lines = [`Alerts (${new Date().toISOString()})`]
           const unack = alerts.filter(a => !a.acknowledged)

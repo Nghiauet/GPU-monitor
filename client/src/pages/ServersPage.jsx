@@ -4,6 +4,8 @@ import ServerCard from '../components/ServerCard.jsx'
 import TimeRangePicker from '../components/TimeRangePicker.jsx'
 import UsageChart from '../components/UsageChart.jsx'
 import CopyButton from '../components/CopyButton.jsx'
+import RefreshButton from '../components/RefreshButton.jsx'
+import { useRefreshKey } from '../hooks/useRefreshKey.js'
 
 export default function ServersPage() {
   const [servers, setServers] = useState([])
@@ -13,6 +15,7 @@ export default function ServersPage() {
   const [selected, setSelected] = useState(null)
   const [chartData, setChartData] = useState([])
   const [chartLoading, setChartLoading] = useState(false)
+  const [refreshKey, refresh] = useRefreshKey()
 
   // Poll servers
   useEffect(() => {
@@ -41,7 +44,7 @@ export default function ServersPage() {
       cancelled = true
       clearInterval(id)
     }
-  }, [])
+  }, [refreshKey])
 
   // Load chart on selection
   useEffect(() => {
@@ -77,6 +80,7 @@ export default function ServersPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Servers</h1>
+          <RefreshButton onRefresh={refresh} />
           <CopyButton getText={() => {
             if (servers.length === 0) return 'No server data'
             const lines = servers.map(s => {
