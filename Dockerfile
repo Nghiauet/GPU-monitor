@@ -34,8 +34,8 @@ COPY --from=client-builder /app/client/dist ./client/dist/
 COPY collect.sh entrypoint.sh ./
 RUN chmod +x entrypoint.sh collect.sh
 
-# Default config (overridden by volume mount)
-COPY config.json ./
+# Default config template (override with volume mount)
+COPY config.example.json ./config.json
 
 RUN mkdir -p /app/logs /data
 
