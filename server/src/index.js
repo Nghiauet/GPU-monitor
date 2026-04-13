@@ -8,12 +8,14 @@ import { createDb, closeDb } from './db.js';
 import { CollectorManager } from './collector.js';
 import { ingestDirectory } from './ingestion.js';
 import { evaluateAlerts } from './alerts.js';
+import { login, logout, requireAuth } from './auth.js';
 import { usersRouter } from './routes/users.js';
 import { gpusRouter } from './routes/gpus.js';
 import { serversRouter } from './routes/servers.js';
 import { alertsRouter } from './routes/alerts.js';
 import { collectorRouter } from './routes/collector.js';
 import { statsRouter } from './routes/stats.js';
+import { logsRouter } from './routes/logs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,27 +27,50 @@ const COLLECT_SCRIPT = join(ROOT_DIR, 'collect.sh');
 
 export const db = createDb(DB_PATH);
 
-function onRunComplete({ lastRunAt, lastDurationMs } = {}) {
+async function onRunComplete({ code, lastRunAt, lastDurationMs, lastError } = {}) {
   const ts = lastRunAt || new Date().toISOString();
-  try {
-    const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-    const today = ts.slice(0, 10); // YYYY-MM-DD
+  const runStatus = (code != null && code !== 0) ? 'error' : 'ok';
+  const runError = lastError || null;
 
-    const servers = config.servers || [];
-    for (const server of servers) {
-      if (!server.enabled) continue;
-      const logDir = join(ROOT_DIR, 'logs', today, server.name);
-      if (existsSync(logDir)) {
-        ingestDirectory(db, logDir);
-      }
-      // Record successful run for each enabled server
+  // Read config separately so a parse failure doesn't silently kill ingestion
+  let config;
+  try {
+    config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+  } catch (err) {
+    console.error('[onRunComplete] Failed to read config:', err);
+    return;
+  }
+
+  const today = ts.slice(0, 10); // YYYY-MM-DD
+  const servers = config.servers || [];
+
+  for (const server of servers) {
+    if (!server.enabled) continue;
+
+    // Record run status per server (using actual exit code, not always 'ok')
+    try {
       db.prepare('INSERT INTO collector_runs (ts_utc, server, status, duration_ms, error) VALUES (?, ?, ?, ?, ?)')
-        .run(ts, server.name, 'ok', lastDurationMs || 0, null);
+        .run(ts, server.name, runStatus, lastDurationMs || 0, runError);
+    } catch (err) {
+      console.error(`[onRunComplete] Failed to record run for ${server.name}:`, err);
     }
 
+    // Ingest collected data, awaiting each to ensure completion before alerts
+    const logDir = join(ROOT_DIR, 'logs', today, server.name);
+    if (existsSync(logDir)) {
+      try {
+        await ingestDirectory(db, logDir);
+      } catch (err) {
+        console.error(`[onRunComplete] Ingestion failed for ${server.name}:`, err);
+      }
+    }
+  }
+
+  // Evaluate alerts only after all ingestion is complete
+  try {
     evaluateAlerts(db);
   } catch (err) {
-    console.error('[onRunComplete] Error:', err);
+    console.error('[onRunComplete] Alert evaluation failed:', err);
   }
 }
 
@@ -56,6 +81,23 @@ export const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Auth endpoints (before requireAuth middleware)
+app.post('/api/auth/login', (req, res) => {
+  const result = login(req.body?.password);
+  if (!result) return res.status(401).json({ error: 'Invalid password' });
+  res.json(result);
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (token) logout(token);
+  res.json({ ok: true });
+});
+
+// All /api routes below require authentication
+app.use('/api', requireAuth);
+
 // API routes
 app.use('/api/users', usersRouter(db));
 app.use('/api/gpus', gpusRouter(db));
@@ -63,6 +105,7 @@ app.use('/api/servers', serversRouter(db, CONFIG_PATH));
 app.use('/api/alerts', alertsRouter(db));
 app.use('/api/collector', collectorRouter(collector));
 app.use('/api/stats', statsRouter(db, CONFIG_PATH));
+app.use('/api/logs', logsRouter(db, join(ROOT_DIR, 'collector.log')));
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -1,16 +1,37 @@
 const BASE = '/api'
 
+// Auth token storage
+export function getToken() { return localStorage.getItem('gpu_monitor_token') }
+export function setToken(token) { localStorage.setItem('gpu_monitor_token', token) }
+export function clearToken() { localStorage.removeItem('gpu_monitor_token') }
+
+// Listeners for 401 events (auth gate subscribes to this)
+let onUnauthorized = null
+export function setOnUnauthorized(fn) { onUnauthorized = fn }
+
 async function fetchJSON(path, options = {}) {
-  const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  })
+  const token = getToken()
+  const headers = { 'Content-Type': 'application/json', ...options.headers }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(BASE + path, { ...options, headers })
+  if (res.status === 401) {
+    clearToken()
+    if (onUnauthorized) onUnauthorized()
+    throw new Error('Unauthorized')
+  }
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`HTTP ${res.status}: ${text}`)
   }
   return res.json()
 }
+
+// Auth
+export const apiLogin = (password) =>
+  fetchJSON('/auth/login', { method: 'POST', body: JSON.stringify({ password }) })
+export const apiLogout = () =>
+  fetchJSON('/auth/logout', { method: 'POST' }).catch(() => {})
 
 function toQuery(params) {
   if (!params) return ''

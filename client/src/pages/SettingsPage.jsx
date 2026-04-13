@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { Settings, Plus, Trash2, Play, Square, Database, ServerCog } from 'lucide-react'
 import CopyButton from '../components/CopyButton.jsx'
 import RefreshButton from '../components/RefreshButton.jsx'
+import StatusIndicator from '../components/StatusIndicator.jsx'
 import { useRefreshKey } from '../hooks/useRefreshKey.js'
 import {
   getCollectorStatus,
@@ -14,55 +16,18 @@ import {
   getStats,
   triggerCleanup,
 } from '../api.js'
-
-const EMPTY_SERVER = { name: '', hostname: '', ssh_user: '', ssh_key_path: '' }
-
-function Section({ title, children }) {
-  return (
-    <section style={{
-      background: '#16213e',
-      border: '1px solid #2a3a5c',
-      borderRadius: '8px',
-      marginBottom: '20px',
-      overflow: 'hidden',
-    }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #2a3a5c' }}>
-        <h2 style={{ fontSize: '14px', color: '#888', fontWeight: 600 }}>{title}</h2>
-      </div>
-      <div style={{ padding: '16px' }}>{children}</div>
-    </section>
-  )
-}
-
-function Input({ label, value, onChange, type = 'text', placeholder }) {
-  return (
-    <div>
-      {label && <label style={{ display: 'block', color: '#888', fontSize: '11px', marginBottom: '4px' }}>{label}</label>}
-      <input
-        type={type}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        style={{
-          width: '100%',
-          background: '#1a1a2e',
-          color: '#e0e0e0',
-          border: '1px solid #2a3a5c',
-          borderRadius: '4px',
-          padding: '6px 8px',
-          fontSize: '13px',
-        }}
-      />
-    </div>
-  )
-}
+import {
+  colors, spacing, fontSize, fontWeight, radius,
+  pageHeaderStyle, pageTitleStyle, sectionStyle, sectionHeaderStyle,
+  buttonStyle, inputStyle, cardStyle, badgeStyle, metricLabelStyle, metricValueStyle,
+} from '../theme.js'
 
 export default function SettingsPage() {
   const [collector, setCollector] = useState(null)
   const [interval, setInterval_] = useState('')
   const [servers, setServers] = useState([])
   const [stats, setStats] = useState(null)
-  const [newServer, setNewServer] = useState(EMPTY_SERVER)
+  const [newServer, setNewServer] = useState({ name: '', hostname: '', ssh_user: '', ssh_key_path: '' })
   const [showAddServer, setShowAddServer] = useState(false)
   const [serverError, setServerError] = useState('')
   const [cleanupMsg, setCleanupMsg] = useState('')
@@ -70,6 +35,7 @@ export default function SettingsPage() {
   const [refreshKey, refresh] = useRefreshKey()
 
   useEffect(() => {
+    let cancelled = false
     async function load() {
       try {
         const [col, srvs, st] = await Promise.all([
@@ -77,13 +43,17 @@ export default function SettingsPage() {
           getServers(),
           getStats().catch(() => null),
         ])
-        setCollector(col)
-        setInterval_(String(col?.interval_seconds ?? col?.interval ?? ''))
-        setServers(Array.isArray(srvs) ? srvs : (srvs.servers || []))
-        setStats(st)
+        if (!cancelled) {
+          setCollector(col)
+          setInterval_(String(col?.interval_seconds ?? col?.interval ?? ''))
+          setServers(Array.isArray(srvs) ? srvs : (srvs.servers || []))
+          setStats(st)
+        }
       } catch {}
     }
     load()
+    const id = setInterval(load, 10000)
+    return () => { cancelled = true; clearInterval(id) }
   }, [refreshKey])
 
   async function handleCollectorToggle() {
@@ -141,7 +111,7 @@ export default function SettingsPage() {
     try {
       const created = await addServer(newServer)
       setServers((prev) => [...prev, created])
-      setNewServer(EMPTY_SERVER)
+      setNewServer({ name: '', hostname: '', ssh_user: '', ssh_key_path: '' })
       setShowAddServer(false)
     } catch (err) {
       setServerError(err.message)
@@ -161,241 +131,227 @@ export default function SettingsPage() {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#e0e0e0' }}>Settings</h1>
-        <RefreshButton onRefresh={refresh} />
-        <CopyButton getText={() => {
-          const lines = [`Settings (${new Date().toISOString()})`]
-          if (status) {
-            lines.push(`Collector: ${status.running ? 'Running' : 'Stopped'}, interval ${status.intervalSeconds}s`)
-            if (status.lastRunAt) lines.push(`  Last run: ${status.lastRunAt} (${status.lastDurationMs}ms)${status.lastError ? ' ERROR: ' + status.lastError : ''}`)
-          }
-          lines.push(`Servers: ${servers.length}`)
-          servers.forEach(s => lines.push(`  ${s.name} (${s.hostname}): ${s.enabled ? 'enabled' : 'disabled'}`))
-          if (stats) {
-            lines.push('Data:')
-            Object.entries(stats.tables || {}).forEach(([t, v]) => {
-              if (v.count != null) lines.push(`  ${t}: ${v.count} rows`)
-            })
-          }
-          return lines.join('\n')
-        }} />
+    <div className="fade-in">
+      <div style={pageHeaderStyle()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.md}px` }}>
+          <h1 style={{ ...pageTitleStyle(), display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}><Settings size={22} strokeWidth={2} /> Settings</h1>
+          <RefreshButton onRefresh={refresh} />
+          <CopyButton getText={() => {
+            const lines = [`Settings (${new Date().toISOString()})`]
+            if (collector) {
+              lines.push(`Collector: ${collector.running ? 'Running' : 'Stopped'}, interval ${collector.interval_seconds}s`)
+            }
+            lines.push(`Servers: ${servers.length}`)
+            servers.forEach(s => lines.push(`  ${s.name} (${s.hostname}): ${s.enabled ? 'enabled' : 'disabled'}`))
+            if (stats) {
+              lines.push('Data:')
+              Object.entries(stats.tables || {}).forEach(([t, v]) => {
+                if (v.count != null) lines.push(`  ${t}: ${v.count} rows`)
+              })
+            }
+            return lines.join('\n')
+          }} />
+        </div>
       </div>
 
       {/* Collector */}
-      <Section title="COLLECTOR">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+      <div style={sectionStyle()}>
+        <div style={{ ...sectionHeaderStyle(), display: 'flex', alignItems: 'center', gap: '6px' }}><Play size={13} /> Collector</div>
+        <div style={{ padding: `${spacing.lg}px` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.lg}px`, marginBottom: `${spacing.lg}px`, flexWrap: 'wrap' }}>
             <button
               onClick={handleCollectorToggle}
               disabled={saving === 'collector'}
-              style={{
-                background: collector?.running ? '#e94560' : '#4ecca3',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '8px 18px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontWeight: 600,
-              }}
+              className={collector?.running ? 'btn-primary' : 'btn-success'}
+              style={buttonStyle(collector?.running ? 'primary' : 'success')}
             >
-              {saving === 'collector' ? '...' : collector?.running ? 'Stop Collector' : 'Start Collector'}
+              {saving === 'collector' ? '...' : collector?.running ? <><Square size={14} fill="currentColor" /> Stop Collector</> : <><Play size={14} fill="currentColor" /> Start Collector</>}
             </button>
-            <span style={{ color: '#888', fontSize: '12px' }}>
-              Status: <span style={{ color: collector?.running ? '#4ecca3' : '#888', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
+              <StatusIndicator
+                color={collector?.running ? 'green' : 'gray'}
+                size={8}
+                pulse={collector?.running}
+              />
+              <span style={badgeStyle(collector?.running ? colors.status.healthy : colors.text.muted)}>
                 {collector?.running ? 'Running' : 'Stopped'}
               </span>
-            </span>
+            </div>
             {collector?.last_run && (
-              <span style={{ color: '#888', fontSize: '12px' }}>
+              <span style={{ color: colors.text.secondary, fontSize: fontSize.base }}>
                 Last run: {new Date(collector.last_run).toLocaleTimeString()}
               </span>
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '120px' }}>
-              <Input
-                label="Interval (seconds)"
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: `${spacing.sm}px` }}>
+            <div style={{ width: '140px' }}>
+              <label style={{ display: 'block', color: colors.text.secondary, fontSize: fontSize.sm, marginBottom: '4px', fontWeight: fontWeight.medium }}>
+                Interval (seconds)
+              </label>
+              <input
+                type="number"
                 value={interval}
                 onChange={(e) => setInterval_(e.target.value)}
-                type="number"
                 placeholder="60"
+                style={inputStyle()}
               />
             </div>
             <button
               onClick={handleUpdateInterval}
               disabled={saving === 'interval'}
-              style={{
-                background: '#2a3a5c',
-                color: '#e0e0e0',
-                border: '1px solid #3a4a6c',
-                borderRadius: '4px',
-                padding: '6px 14px',
-                fontSize: '12px',
-                cursor: 'pointer',
-                marginTop: '16px',
-              }}
+              className="btn-secondary"
+              style={buttonStyle('secondary')}
             >
               {saving === 'interval' ? '...' : 'Update'}
             </button>
           </div>
         </div>
-      </Section>
+      </div>
 
       {/* Servers */}
-      <Section title="SERVERS">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-          {servers.length === 0 ? (
-            <div style={{ color: '#888', padding: '10px', textAlign: 'center' }}>No servers configured</div>
-          ) : (
-            servers.map((server) => (
-              <div
-                key={server.name}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '8px 12px',
-                  background: '#1a1a2e',
-                  border: '1px solid #2a3a5c',
-                  borderRadius: '6px',
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <span style={{ color: '#e0e0e0', fontWeight: 600 }}>{server.name}</span>
-                  {server.hostname && (
-                    <span style={{ color: '#888', fontSize: '11px', marginLeft: '8px' }}>{server.hostname}</span>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleToggleServer(server)}
+      <div style={sectionStyle()}>
+        <div style={{ ...sectionHeaderStyle(), display: 'flex', alignItems: 'center', gap: '6px' }}><ServerCog size={13} /> Servers</div>
+        <div style={{ padding: `${spacing.lg}px` }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px`, marginBottom: `${spacing.md}px` }}>
+            {servers.length === 0 ? (
+              <div style={{ color: colors.text.muted, padding: `${spacing.md}px`, textAlign: 'center' }}>No servers configured</div>
+            ) : (
+              servers.map((server) => (
+                <div
+                  key={server.name}
                   style={{
-                    background: server.enabled ? '#2a3a5c' : '#1a1a2e',
-                    color: server.enabled ? '#4ecca3' : '#888',
-                    border: '1px solid #3a4a6c',
-                    borderRadius: '4px',
-                    padding: '3px 10px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: `${spacing.md}px`,
+                    padding: `${spacing.sm}px ${spacing.md}px`,
+                    background: colors.bg.input,
+                    border: `1px solid ${colors.border.default}`,
+                    borderRadius: radius.md,
+                    flexWrap: 'wrap',
                   }}
                 >
-                  {server.enabled ? 'Enabled' : 'Disabled'}
-                </button>
-                <button
-                  onClick={() => handleRemoveServer(server.name)}
-                  style={{
-                    background: 'none',
-                    color: '#e94560',
-                    border: '1px solid #e94560',
-                    borderRadius: '4px',
-                    padding: '3px 10px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Remove
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-
-        {!showAddServer ? (
-          <button
-            onClick={() => setShowAddServer(true)}
-            style={{
-              background: 'none',
-              color: '#4ecca3',
-              border: '1px solid #4ecca3',
-              borderRadius: '4px',
-              padding: '6px 14px',
-              fontSize: '13px',
-              cursor: 'pointer',
-            }}
-          >
-            + Add Server
-          </button>
-        ) : (
-          <form onSubmit={handleAddServer} style={{ marginTop: '8px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
-              <Input label="Name *" value={newServer.name} onChange={(e) => setNewServer((s) => ({ ...s, name: e.target.value }))} placeholder="prod-gpu-01" />
-              <Input label="Hostname *" value={newServer.hostname} onChange={(e) => setNewServer((s) => ({ ...s, hostname: e.target.value }))} placeholder="192.168.1.10" />
-              <Input label="SSH User" value={newServer.ssh_user} onChange={(e) => setNewServer((s) => ({ ...s, ssh_user: e.target.value }))} placeholder="ubuntu" />
-              <Input label="SSH Key Path" value={newServer.ssh_key_path} onChange={(e) => setNewServer((s) => ({ ...s, ssh_key_path: e.target.value }))} placeholder="/home/user/.ssh/id_rsa" />
-            </div>
-            {serverError && <div style={{ color: '#e94560', fontSize: '12px', marginBottom: '8px' }}>{serverError}</div>}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="submit"
-                disabled={saving === 'addserver'}
-                style={{ background: '#4ecca3', color: '#1a1a2e', border: 'none', borderRadius: '4px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}
-              >
-                {saving === 'addserver' ? 'Adding...' : 'Add Server'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowAddServer(false); setNewServer(EMPTY_SERVER); setServerError('') }}
-                style={{ background: 'none', color: '#888', border: '1px solid #2a3a5c', borderRadius: '4px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
-      </Section>
-
-      {/* Data & Retention */}
-      <Section title="DATA & RETENTION">
-        {stats ? (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', marginBottom: '12px' }}>
-              {[
-                { label: 'DB Size', value: stats.db_size_mb ? `${stats.db_size_mb} MB` : (stats.size_mb ? `${stats.size_mb} MB` : '—') },
-                { label: 'GPU Snapshots', value: stats.gpu_snapshots ?? stats.gpu_snapshot_count ?? '—' },
-                { label: 'Server Snapshots', value: stats.server_snapshots ?? stats.server_snapshot_count ?? '—' },
-                { label: 'Alerts', value: stats.alert_count ?? stats.alerts ?? '—' },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ background: '#1a1a2e', border: '1px solid #2a3a5c', borderRadius: '6px', padding: '10px 14px' }}>
-                  <div style={{ color: '#888', fontSize: '11px', marginBottom: '4px' }}>{label}</div>
-                  <div style={{ color: '#e0e0e0', fontWeight: 600 }}>{String(value)}</div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
+                    <StatusIndicator color={server.enabled ? 'green' : 'gray'} size={8} />
+                    <span style={{ color: colors.text.primary, fontWeight: fontWeight.semibold }}>{server.name}</span>
+                    {server.hostname && (
+                      <span style={{ color: colors.text.muted, fontSize: fontSize.sm }}>{server.hostname}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleToggleServer(server)}
+                    className={server.enabled ? 'toggle-enabled' : 'toggle-disabled'}
+                    style={{ ...buttonStyle('ghost'), fontSize: fontSize.base, padding: '4px 12px' }}
+                  >
+                    {server.enabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                  <button
+                    onClick={() => handleRemoveServer(server.name)}
+                    className="btn-danger"
+                    style={{ ...buttonStyle('danger'), fontSize: fontSize.base, padding: '4px 12px' }}
+                  >
+                    <Trash2 size={13} /> Remove
+                  </button>
                 </div>
-              ))}
-            </div>
-            {(stats.oldest || stats.date_range?.oldest) && (
-              <div style={{ color: '#888', fontSize: '12px' }}>
-                Data range: {stats.oldest || stats.date_range?.oldest} — {stats.newest || stats.date_range?.newest}
-              </div>
+              ))
             )}
           </div>
-        ) : (
-          <div style={{ color: '#888', fontSize: '12px', marginBottom: '12px' }}>Stats unavailable</div>
-        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            onClick={handleCleanup}
-            style={{
-              background: '#f5a623',
-              color: '#1a1a2e',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '6px 16px',
-              fontSize: '13px',
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
-          >
-            Run Cleanup Now
-          </button>
-          {cleanupMsg && (
-            <span style={{ color: '#888', fontSize: '12px' }}>{cleanupMsg}</span>
+          {!showAddServer ? (
+            <button
+              onClick={() => setShowAddServer(true)}
+              className="btn-success"
+              style={{ ...buttonStyle('success'), background: 'transparent', color: colors.accent.green, border: `1px solid ${colors.accent.green}` }}
+            >
+              <Plus size={15} strokeWidth={2.5} /> Add Server
+            </button>
+          ) : (
+            <form onSubmit={handleAddServer} className="slide-down" style={{ marginTop: `${spacing.sm}px` }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: `${spacing.md}px`, marginBottom: `${spacing.md}px` }}>
+                {[
+                  { label: 'Name *', key: 'name', placeholder: 'prod-gpu-01' },
+                  { label: 'Hostname *', key: 'hostname', placeholder: '192.168.1.10' },
+                  { label: 'SSH User', key: 'ssh_user', placeholder: 'ubuntu' },
+                  { label: 'SSH Key Path', key: 'ssh_key_path', placeholder: '/home/user/.ssh/id_rsa' },
+                ].map(({ label, key, placeholder }) => (
+                  <div key={key}>
+                    <label style={{ display: 'block', color: colors.text.secondary, fontSize: fontSize.sm, marginBottom: '4px', fontWeight: fontWeight.medium }}>{label}</label>
+                    <input
+                      value={newServer[key]}
+                      onChange={(e) => setNewServer((s) => ({ ...s, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      style={inputStyle()}
+                    />
+                  </div>
+                ))}
+              </div>
+              {serverError && <div style={{ color: colors.accent.red, fontSize: fontSize.base, marginBottom: `${spacing.sm}px` }}>{serverError}</div>}
+              <div style={{ display: 'flex', gap: `${spacing.sm}px` }}>
+                <button type="submit" disabled={saving === 'addserver'} className="btn-success" style={buttonStyle('success')}>
+                  {saving === 'addserver' ? 'Adding...' : 'Add Server'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowAddServer(false); setNewServer({ name: '', hostname: '', ssh_user: '', ssh_key_path: '' }); setServerError('') }}
+                  className="btn-ghost"
+                  style={buttonStyle('ghost')}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           )}
         </div>
-      </Section>
+      </div>
+
+      {/* Data & Retention */}
+      <div style={sectionStyle()}>
+        <div style={{ ...sectionHeaderStyle(), display: 'flex', alignItems: 'center', gap: '6px' }}><Database size={13} /> Data & Retention</div>
+        <div style={{ padding: `${spacing.lg}px` }}>
+          {stats ? (
+            <div style={{ marginBottom: `${spacing.lg}px` }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: `${spacing.md}px`, marginBottom: `${spacing.md}px` }}>
+                {[
+                  { label: 'DB Size', value: stats.db_size_bytes != null ? `${(stats.db_size_bytes / 1024 / 1024).toFixed(1)} MB` : '--' },
+                  { label: 'GPU Snapshots', value: stats.tables?.gpu_devices?.count ?? '--' },
+                  { label: 'Server Snapshots', value: stats.tables?.host_summaries?.count ?? '--' },
+                  { label: 'Alerts', value: stats.tables?.alerts?.count ?? '--' },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{
+                    background: colors.bg.input,
+                    border: `1px solid ${colors.border.default}`,
+                    borderRadius: radius.lg,
+                    padding: `${spacing.md}px ${spacing.lg}px`,
+                  }}>
+                    <div style={metricLabelStyle()}>{label}</div>
+                    <div style={{ ...metricValueStyle(), fontSize: fontSize.xl }}>{String(value)}</div>
+                  </div>
+                ))}
+              </div>
+              {stats.tables?.gpu_devices?.oldest && (
+                <div style={{ color: colors.text.secondary, fontSize: fontSize.base }}>
+                  Data range: {stats.tables.gpu_devices.oldest} &mdash; {stats.tables.gpu_devices.newest}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ color: colors.text.muted, fontSize: fontSize.base, marginBottom: `${spacing.md}px` }}>Stats unavailable</div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.md}px` }}>
+            <button
+              onClick={handleCleanup}
+              className="btn-primary"
+              style={{ ...buttonStyle('warning') }}
+            >
+              Run Cleanup Now
+            </button>
+            {cleanupMsg && (
+              <span style={{ color: colors.text.secondary, fontSize: fontSize.base }}>{cleanupMsg}</span>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,0 +1,259 @@
+/* GPU Monitor — Global styles and animations */
+
+/* Keyframes */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 800px; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Fade in animation class */
+.fade-in {
+  animation: fadeIn 0.3s ease both;
+}
+
+.slide-down {
+  animation: slideDown 0.3s ease both;
+  overflow: hidden;
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #1a1a2e 25%, #252540 50%, #1a1a2e 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 6px;
+}
+
+/* Spin animation */
+.spin {
+  animation: spin 0.6s linear;
+}
+
+/* Pulse for status indicators */
+.status-pulse {
+  position: relative;
+}
+.status-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0f0f1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a45;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #35355a;
+}
+
+/* Focus visible */
+*:focus-visible {
+  outline: 2px solid #4fc3f7;
+  outline-offset: 2px;
+}
+
+button:focus-visible {
+  outline: 2px solid #4fc3f7;
+  outline-offset: 2px;
+}
+
+/* Input focus */
+input:focus, select:focus {
+  border-color: #4fc3f7 !important;
+  box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.15);
+}
+
+/* Placeholder */
+input::placeholder {
+  color: #4a4a65;
+}
+
+/* Hoverable cards */
+.card-hover:hover {
+  background: #1e2240 !important;
+  border-color: #35355a !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+
+.card-hover:active {
+  transform: translateY(0);
+}
+
+/* Table row hover */
+.table-row-hover:hover {
+  background: #1e2240 !important;
+}
+
+/* Button hover states */
+.btn-primary:hover { filter: brightness(1.15); }
+.btn-primary:active { filter: brightness(0.95); transform: scale(0.98); }
+
+.btn-secondary:hover { background: #35355a !important; border-color: #4a4a65 !important; }
+.btn-secondary:active { background: #2a2a45 !important; }
+
+.btn-ghost:hover { color: #e8e8f0 !important; border-color: #4fc3f7 !important; background: rgba(79, 195, 247, 0.05) !important; }
+
+.btn-danger:hover { background: rgba(233, 69, 96, 0.1) !important; }
+
+.btn-success:hover { filter: brightness(1.1); }
+.btn-success:active { filter: brightness(0.95); }
+
+/* Toggle switch */
+.toggle-enabled { color: #4ecca3 !important; background: rgba(78, 204, 163, 0.12) !important; border-color: rgba(78, 204, 163, 0.3) !important; }
+.toggle-enabled:hover { background: rgba(78, 204, 163, 0.2) !important; }
+.toggle-disabled { color: #686880 !important; background: transparent !important; border-color: #2a2a45 !important; }
+.toggle-disabled:hover { color: #9898b0 !important; border-color: #35355a !important; }
+
+/* Nav link hover */
+.nav-link:hover {
+  background: rgba(233, 69, 96, 0.08) !important;
+  color: #e8e8f0 !important;
+}
+
+/* Sidebar mobile slide */
+.sidebar-enter {
+  transform: translateX(-100%);
+}
+.sidebar-enter-active {
+  transform: translateX(0);
+  transition: transform 0.25s ease;
+}
+
+/* Tab hover */
+.tab-btn:hover {
+  color: #e8e8f0 !important;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Smooth transition for backdrop */
+.backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Selection color */
+::selection {
+  background: rgba(233, 69, 96, 0.3);
+  color: #fff;
+}
+
+/* ── Login Page ── */
+
+@keyframes login-gridPulse {
+  0%, 100% { opacity: 0.03; }
+  50% { opacity: 0.06; }
+}
+
+@keyframes login-scanLine {
+  0% { top: -2px; }
+  100% { top: 100%; }
+}
+
+@keyframes login-barPulse1 { 0%,100%{height:40%} 25%{height:75%} 50%{height:55%} 75%{height:85%} }
+@keyframes login-barPulse2 { 0%,100%{height:60%} 20%{height:35%} 45%{height:80%} 70%{height:50%} }
+@keyframes login-barPulse3 { 0%,100%{height:50%} 30%{height:90%} 55%{height:40%} 80%{height:70%} }
+@keyframes login-barPulse4 { 0%,100%{height:70%} 15%{height:45%} 40%{height:85%} 65%{height:55%} }
+@keyframes login-barPulse5 { 0%,100%{height:35%} 25%{height:65%} 50%{height:90%} 75%{height:45%} }
+@keyframes login-barPulse6 { 0%,100%{height:55%} 20%{height:80%} 45%{height:35%} 70%{height:70%} }
+@keyframes login-barPulse7 { 0%,100%{height:45%} 30%{height:70%} 55%{height:85%} 80%{height:40%} }
+@keyframes login-barPulse8 { 0%,100%{height:65%} 25%{height:40%} 50%{height:75%} 75%{height:55%} }
+
+@keyframes login-cardReveal {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes login-glowPulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(233, 69, 96, 0.08), 0 8px 32px rgba(0,0,0,0.4); }
+  50% { box-shadow: 0 0 40px rgba(233, 69, 96, 0.14), 0 8px 32px rgba(0,0,0,0.4); }
+}
+
+@keyframes login-borderGlow {
+  0%, 100% { border-color: #2a2a45; }
+  50% { border-color: #3a3a5c; }
+}
+
+@keyframes login-logoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes login-errorShake {
+  0%, 100% { transform: translateX(0); }
+  15%, 45%, 75% { transform: translateX(-6px); }
+  30%, 60%, 90% { transform: translateX(6px); }
+}
+
+.login-card {
+  animation: login-cardReveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) both,
+             login-glowPulse 4s ease-in-out infinite 0.6s,
+             login-borderGlow 4s ease-in-out infinite 0.6s;
+}
+
+.login-logo-icon {
+  animation: login-logoFloat 3s ease-in-out infinite;
+}
+
+.login-error-shake {
+  animation: login-errorShake 0.4s ease;
+}
+
+.login-bar { border-radius: 2px 2px 0 0; will-change: height; }
+.login-bar:nth-child(1)  { animation: login-barPulse1 6s ease-in-out infinite; }
+.login-bar:nth-child(2)  { animation: login-barPulse2 7s ease-in-out infinite; }
+.login-bar:nth-child(3)  { animation: login-barPulse3 5s ease-in-out infinite; }
+.login-bar:nth-child(4)  { animation: login-barPulse4 8s ease-in-out infinite; }
+.login-bar:nth-child(5)  { animation: login-barPulse5 6.5s ease-in-out infinite; }
+.login-bar:nth-child(6)  { animation: login-barPulse6 7.5s ease-in-out infinite; }
+.login-bar:nth-child(7)  { animation: login-barPulse7 5.5s ease-in-out infinite; }
+.login-bar:nth-child(8)  { animation: login-barPulse8 6s ease-in-out infinite; }
+.login-bar:nth-child(9)  { animation: login-barPulse1 7s ease-in-out infinite; }
+.login-bar:nth-child(10) { animation: login-barPulse3 8s ease-in-out infinite; }
+.login-bar:nth-child(11) { animation: login-barPulse5 5s ease-in-out infinite; }
+.login-bar:nth-child(12) { animation: login-barPulse2 6.5s ease-in-out infinite; }
+
+.login-btn:hover:not(:disabled) { filter: brightness(1.15); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(233, 69, 96, 0.3); }
+.login-btn:active:not(:disabled) { transform: translateY(0); filter: brightness(0.95); }
+
+.login-input:focus {
+  border-color: #e94560 !important;
+  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.12), 0 0 20px rgba(233, 69, 96, 0.06) !important;
+}
