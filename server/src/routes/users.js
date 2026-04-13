@@ -1,6 +1,43 @@
 import { Router } from 'express';
 import { getDateRange } from '../dateRange.js';
 
+export const USER_JOBS_SQL = `
+  SELECT
+    pid,
+    server,
+    gpu_index,
+    process_name,
+    cmd,
+    MAX(gpu_mem_mb) AS peak_gpu_mem_mb,
+    AVG(cpu_pct) AS avg_cpu_pct,
+    CASE
+      WHEN MAX(elapsed_sec) > 0 THEN strftime(
+        '%Y-%m-%dT%H:%M:%SZ',
+        datetime(MAX(ts_utc), '-' || MAX(elapsed_sec) || ' seconds')
+      )
+      ELSE MIN(ts_utc)
+    END AS first_seen,
+    MAX(ts_utc) AS last_seen,
+    COUNT(*) AS snapshot_count,
+    CASE
+      WHEN MAX(elapsed_sec) > 0 THEN MAX(elapsed_sec)
+      ELSE CAST((julianday(MAX(ts_utc)) - julianday(MIN(ts_utc))) * 86400 AS INTEGER)
+    END AS duration_sec
+  FROM gpu_processes
+  WHERE user = ?
+  GROUP BY pid, server
+  HAVING MAX(ts_utc) >= ? AND MIN(ts_utc) <= ?
+  ORDER BY last_seen DESC
+`;
+
+export function annotateJobActivity(jobs, nowMs = Date.now()) {
+  const cutoff = new Date(nowMs - 2 * 60 * 1000).toISOString();
+  for (const job of jobs) {
+    job.active = job.last_seen >= cutoff;
+  }
+  return jobs;
+}
+
 /**
  * Factory function that returns an Express Router for user-related routes.
  * @param {import('better-sqlite3').Database} db
@@ -81,20 +118,7 @@ export function usersRouter(db) {
     ORDER BY ts_utc
   `);
 
-  const userJobsStmt = db.prepare(`
-    SELECT
-      pid, server, gpu_index, process_name, cmd,
-      MAX(gpu_mem_mb) AS peak_gpu_mem_mb,
-      AVG(cpu_pct) AS avg_cpu_pct,
-      MIN(ts_utc) AS first_seen,
-      MAX(ts_utc) AS last_seen,
-      COUNT(*) AS snapshot_count,
-      (CAST((julianday(MAX(ts_utc)) - julianday(MIN(ts_utc))) * 86400 AS INTEGER)) AS duration_sec
-    FROM gpu_processes
-    WHERE user = ? AND ts_utc BETWEEN ? AND ?
-    GROUP BY pid, server
-    ORDER BY last_seen DESC
-  `);
+  const userJobsStmt = db.prepare(USER_JOBS_SQL);
 
   /**
    * GET /api/users
@@ -237,13 +261,7 @@ export function usersRouter(db) {
       const { username } = req.params;
       const { from, to } = getDateRange(req.query);
 
-      const jobs = userJobsStmt.all(username, from, to);
-
-      const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-      for (const job of jobs) {
-        job.active = job.last_seen >= cutoff;
-      }
-
+      const jobs = annotateJobActivity(userJobsStmt.all(username, from, to));
       res.json(jobs);
     } catch (err) {
       res.status(500).json({ error: err.message });

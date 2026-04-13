@@ -11,7 +11,7 @@ export function fmtElapsed(secs) {
   const m = Math.floor((secs % 3600) / 60)
   if (h < 24) return `${h}h ${m}m`
   const d = Math.floor(h / 24)
-  return `${d}d ${h % 24}h`
+  return `${d}d ${h % 24}h ${m}m`
 }
 
 export function fmtTime(iso) {

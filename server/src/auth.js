@@ -1,6 +1,7 @@
 import crypto from 'crypto';
+import { getRequiredPassword } from './authConfig.js';
 
-const PASSWORD = process.env.GPU_MONITOR_PASSWORD;
+const PASSWORD = getRequiredPassword();
 
 // In-memory token store (survives for the process lifetime)
 const validTokens = new Set();
