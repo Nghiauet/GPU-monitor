@@ -18,4 +18,4 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - DB_PATH=/data/gpu_monitor.db
-      - GPU_MONITOR_PASSWORD=${GPU_MONITOR_PASSWORD:-admin}
+      - GPU_MONITOR_PASSWORD=${GPU_MONITOR_PASSWORD}

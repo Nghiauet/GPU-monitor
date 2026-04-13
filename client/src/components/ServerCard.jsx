@@ -1,4 +1,5 @@
 import StatusIndicator from './StatusIndicator.jsx'
+import { colors, cardStyle, spacing, fontSize, fontWeight, progressBarBg, progressBarFill, metricLabelStyle, metricValueStyle } from '../theme.js'
 
 function healthColor(server) {
   if (!server.enabled) return 'gray'
@@ -19,6 +20,8 @@ export default function ServerCard({ server, onClick, selected }) {
   const cpuIdle = server.cpu_idle_pct ?? null
   const memUsed = server.mem_used_mb ?? null
   const memTotal = server.mem_total_mb ?? null
+  const memPct = memUsed != null && memTotal != null && memTotal > 0
+    ? (memUsed / memTotal) * 100 : null
 
   const memText = memUsed != null && memTotal != null
     ? `${(memUsed / 1024).toFixed(1)} / ${(memTotal / 1024).toFixed(1)} GB`
@@ -27,58 +30,60 @@ export default function ServerCard({ server, onClick, selected }) {
   return (
     <div
       onClick={onClick}
-      style={{
-        background: selected ? '#1e2d50' : '#16213e',
-        border: `1px solid ${selected ? '#e94560' : '#2a3a5c'}`,
-        borderRadius: '8px',
-        padding: '14px 16px',
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'background 0.15s, border-color 0.15s',
-      }}
-      onMouseEnter={(e) => { if (onClick) e.currentTarget.style.background = '#1e2d50' }}
-      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = '#16213e' }}
+      className={onClick ? 'card-hover' : undefined}
+      style={cardStyle({ selected, hoverable: !!onClick })}
     >
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px`, marginBottom: `${spacing.sm}px` }}>
         <StatusIndicator color={color} />
-        <span style={{ color: '#e0e0e0', fontWeight: 700, fontSize: '15px' }}>
+        <span style={{ color: colors.text.primary, fontWeight: fontWeight.bold, fontSize: '15px' }}>
           {server.name}
         </span>
+        {server.hostname && (
+          <span style={{ color: colors.text.muted, fontSize: fontSize.sm, marginLeft: 'auto' }}>
+            {server.hostname}
+          </span>
+        )}
       </div>
 
-      {/* Hostname */}
-      {server.hostname && (
-        <div style={{ color: '#888', fontSize: '11px', marginBottom: '10px' }}>
-          {server.hostname}
-        </div>
-      )}
-
       {/* Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px' }}>
-        {load1 != null && (
-          <div>
-            <span style={{ color: '#888' }}>Load: </span>
-            <span style={{ color: '#e0e0e0' }}>{Number(load1).toFixed(2)}</span>
-          </div>
-        )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px`, marginTop: `${spacing.md}px` }}>
         {cpuUser != null && (
           <div>
-            <span style={{ color: '#888' }}>CPU: </span>
-            <span style={{ color: '#e0e0e0' }}>{Number(cpuUser).toFixed(1)}%</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span style={metricLabelStyle()}>CPU</span>
+              <span style={metricValueStyle()}>{Number(cpuUser).toFixed(1)}%</span>
+            </div>
+            <div style={progressBarBg()}>
+              <div style={progressBarFill(cpuUser, cpuUser > 80 ? colors.status.critical : cpuUser > 50 ? colors.status.warning : colors.status.healthy)} />
+            </div>
           </div>
         )}
-        {cpuIdle != null && (
+        {memPct != null && (
           <div>
-            <span style={{ color: '#888' }}>Idle: </span>
-            <span style={{ color: '#4ecca3' }}>{Number(cpuIdle).toFixed(1)}%</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span style={metricLabelStyle()}>Memory</span>
+              <span style={metricValueStyle()}>{memText}</span>
+            </div>
+            <div style={progressBarBg()}>
+              <div style={progressBarFill(memPct, memPct > 80 ? colors.status.critical : colors.accent.blue)} />
+            </div>
           </div>
         )}
-        {memText && (
-          <div>
-            <span style={{ color: '#888' }}>Mem: </span>
-            <span style={{ color: '#e0e0e0' }}>{memText}</span>
-          </div>
-        )}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${spacing.sm}px`, marginTop: '2px' }}>
+          {load1 != null && (
+            <div>
+              <div style={metricLabelStyle()}>Load</div>
+              <div style={metricValueStyle()}>{Number(load1).toFixed(2)}</div>
+            </div>
+          )}
+          {cpuIdle != null && (
+            <div>
+              <div style={metricLabelStyle()}>Idle</div>
+              <div style={{ ...metricValueStyle(), color: colors.status.healthy }}>{Number(cpuIdle).toFixed(1)}%</div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

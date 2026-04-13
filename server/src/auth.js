@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const PASSWORD = process.env.GPU_MONITOR_PASSWORD || 'admin';
+const PASSWORD = process.env.GPU_MONITOR_PASSWORD;
 
 // In-memory token store (survives for the process lifetime)
 const validTokens = new Set();

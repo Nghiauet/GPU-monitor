@@ -11,9 +11,9 @@ if [ -d /root/.ssh-mount ]; then
   chmod 600 /root/.ssh/config 2>/dev/null || true
   chmod 600 /root/.ssh/id_* 2>/dev/null || true
 
-  # Fix IdentityFile paths: /home/vagrant/.ssh/ -> /root/.ssh/ inside container
+  # Fix IdentityFile paths: rewrite any host-side ~/.ssh/ path to /root/.ssh/ inside container
   if [ -f /root/.ssh/config ]; then
-    sed -i 's|/home/vagrant/.ssh/|/root/.ssh/|g' /root/.ssh/config
+    sed -i 's|IdentityFile .*/\.ssh/|IdentityFile /root/.ssh/|g' /root/.ssh/config
   fi
 fi
 

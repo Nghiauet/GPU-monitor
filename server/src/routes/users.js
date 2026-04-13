@@ -58,7 +58,7 @@ export function usersRouter(db) {
     FROM user_rollups
     WHERE ts_utc BETWEEN ? AND ?
     GROUP BY ts_utc, user
-    ORDER BY ts_utc
+    ORDER BY ts_utc ASC
     LIMIT 50000
   `);
 
@@ -70,7 +70,7 @@ export function usersRouter(db) {
     FROM user_rollups
     WHERE server = ? AND ts_utc BETWEEN ? AND ?
     GROUP BY ts_utc, user
-    ORDER BY ts_utc
+    ORDER BY ts_utc ASC
     LIMIT 50000
   `);
 

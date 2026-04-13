@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Copy, Check } from 'lucide-react'
+import { colors, buttonStyle } from '../theme.js'
 
 export default function CopyButton({ getText }) {
   const [copied, setCopied] = useState(false)
@@ -10,7 +12,6 @@ export default function CopyButton({ getText }) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback for non-HTTPS contexts
       const text = getText()
       const ta = document.createElement('textarea')
       ta.value = text
@@ -28,19 +29,14 @@ export default function CopyButton({ getText }) {
   return (
     <button
       onClick={handleCopy}
+      className={copied ? 'btn-success' : 'btn-secondary'}
       style={{
-        background: copied ? '#4ecca3' : '#2a3a5c',
-        color: copied ? '#1a1a2e' : '#e0e0e0',
-        border: 'none',
-        borderRadius: '4px',
-        padding: '5px 12px',
+        ...buttonStyle(copied ? 'success' : 'secondary'),
         fontSize: '12px',
-        cursor: 'pointer',
-        transition: 'all 0.15s',
-        fontWeight: copied ? 600 : 400,
+        padding: '6px 12px',
       }}
     >
-      {copied ? 'Copied!' : 'Copy Status'}
+      {copied ? <><Check size={14} strokeWidth={2.5} /> Copied</> : <><Copy size={14} /> Copy</>}
     </button>
   )
 }

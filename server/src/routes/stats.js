@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { readFileSync, statSync } from 'fs';
+import { readFileSync, statSync, existsSync } from 'fs';
 import { cleanupDb, cleanupLogDirs } from '../cleanup.js';
 
 /**
@@ -35,15 +35,12 @@ export function statsRouter(db, configPath) {
         stats[table].newest = rangeRow.newest || null;
       }
 
-      // DB file size — read from config to find db path
+      // DB file size — use the actual database filename from better-sqlite3
       let dbSizeBytes = null;
       try {
-        const config = JSON.parse(readFileSync(configPath, 'utf8'));
-        if (config.db_path) {
-          dbSizeBytes = statSync(config.db_path).size;
-        }
+        dbSizeBytes = statSync(db.name).size;
       } catch {
-        // best-effort: if db_path not in config or file not accessible, skip
+        // best-effort: skip if file not accessible
       }
 
       res.json({ tables: stats, db_size_bytes: dbSizeBytes });

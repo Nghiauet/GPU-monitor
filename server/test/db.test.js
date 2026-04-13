@@ -68,7 +68,7 @@ describe('createDb / closeDb', () => {
   });
 });
 
-describe('All 8 tables are created', () => {
+describe('All 7 tables are created', () => {
   it('creates all required tables', () => {
     dbPath = tmpDbPath();
     db = createDb(dbPath);
@@ -80,7 +80,6 @@ describe('All 8 tables are created', () => {
       'gpu_devices',
       'gpu_processes',
       'host_summaries',
-      'servers',
       'user_rollups',
     ];
     for (const t of expected) {
@@ -252,31 +251,7 @@ describe('host_summaries table', () => {
   });
 });
 
-describe('portal tables exist (servers, alert_rules, alerts, collector_runs)', () => {
-  it('servers table has correct schema (UNIQUE name, defaults)', () => {
-    dbPath = tmpDbPath();
-    db = createDb(dbPath);
-    // Insert should succeed
-    db.prepare(`
-      INSERT INTO servers (name, hostname, ssh_user, ssh_key_path)
-      VALUES ('srv1', 'host1', 'ubuntu', '/home/ubuntu/.ssh/id_rsa')
-    `).run();
-    const result = db.prepare('SELECT * FROM servers').all();
-    expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('srv1');
-    expect(result[0].enabled).toBe(1);
-    expect(result[0].created_at).toBeTruthy();
-  });
-
-  it('servers table enforces UNIQUE name', () => {
-    dbPath = tmpDbPath();
-    db = createDb(dbPath);
-    db.prepare(`INSERT INTO servers (name, hostname, ssh_user, ssh_key_path) VALUES ('srv1', 'host1', 'ubuntu', '/key')`).run();
-    expect(() =>
-      db.prepare(`INSERT INTO servers (name, hostname, ssh_user, ssh_key_path) VALUES ('srv1', 'host2', 'ubuntu', '/key')`).run()
-    ).toThrow();
-  });
-
+describe('portal tables exist (alert_rules, alerts, collector_runs)', () => {
   it('alert_rules table inserts correctly', () => {
     dbPath = tmpDbPath();
     db = createDb(dbPath);

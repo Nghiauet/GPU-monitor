@@ -104,14 +104,16 @@ export class CollectorManager {
     config.interval_seconds = seconds;
     writeFileSync(this._configPath, JSON.stringify(config, null, 2));
 
-    // Restart if currently running
+    // Restart the interval timer if running, but don't kill in-flight collection
     if (this._running) {
-      const wasRunning = this._running;
-      this.stop();
-      if (wasRunning) {
-        this._running = false; // stop() sets running=false, start() will re-enable
-        this.start();
+      // Only clear and re-create the interval timer — leave _childProcess alone
+      if (this._intervalHandle !== null) {
+        clearInterval(this._intervalHandle);
+        this._intervalHandle = null;
       }
+      this._intervalHandle = setInterval(() => {
+        this.runOnce();
+      }, this._intervalSeconds * 1000);
     }
   }
 
@@ -138,11 +140,13 @@ export class CollectorManager {
       this._lastRunAt = new Date().toISOString();
       this._lastDurationMs = Date.now() - startTime;
       this._lastError = stderrLines.length > 0 ? stderrLines.join('') : (code !== 0 ? `Exit code: ${code}` : null);
-      this._onRunComplete({
+      Promise.resolve(this._onRunComplete({
         code,
         lastRunAt: this._lastRunAt,
         lastDurationMs: this._lastDurationMs,
         lastError: this._lastError,
+      })).catch((err) => {
+        console.error('[CollectorManager] onRunComplete error:', err);
       });
     });
 
@@ -152,11 +156,13 @@ export class CollectorManager {
       this._lastRunAt = new Date().toISOString();
       this._lastDurationMs = Date.now() - startTime;
       this._lastError = err.message;
-      this._onRunComplete({
+      Promise.resolve(this._onRunComplete({
         code: -1,
         lastRunAt: this._lastRunAt,
         lastDurationMs: this._lastDurationMs,
         lastError: this._lastError,
+      })).catch((cbErr) => {
+        console.error('[CollectorManager] onRunComplete error:', cbErr);
       });
     });
   }

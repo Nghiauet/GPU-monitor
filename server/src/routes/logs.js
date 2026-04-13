@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { readFileSync, existsSync } from 'fs';
+import { createReadStream, existsSync, statSync } from 'fs';
+import { createInterface } from 'readline';
 
 /**
  * Factory function that returns an Express Router for log viewing routes.
@@ -19,7 +20,7 @@ export function logsRouter(db, collectorLogPath) {
    *   limit - max entries to return (default 200, max 1000)
    * Returns: { entries, total }
    */
-  router.get('/', (req, res) => {
+  router.get('/', async (req, res) => {
     try {
       const level = req.query.level || 'all';
       let limit = parseInt(req.query.limit, 10);
@@ -30,25 +31,29 @@ export function logsRouter(db, collectorLogPath) {
         return res.json({ entries: [], total: 0 });
       }
 
-      const raw = readFileSync(collectorLogPath, 'utf8');
-      const lines = raw.split('\n').filter(line => line.trim() !== '');
+      // Stream the file and collect all matching entries, then return the newest
+      const allEntries = [];
+      const fileStream = createReadStream(collectorLogPath);
+      const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
 
-      let entries = lines.map(line => {
+      for await (const line of rl) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        let entry;
         try {
-          return JSON.parse(line);
+          entry = JSON.parse(trimmed);
         } catch {
-          return null;
+          continue;
         }
-      }).filter(entry => entry !== null);
-
-      if (level === 'error') {
-        entries = entries.filter(entry => entry.level === 'error');
+        if (level === 'error' && entry.level !== 'error') continue;
+        allEntries.push(entry);
       }
 
-      const total = entries.length;
-      const sliced = entries.slice(0, limit);
+      const total = allEntries.length;
+      // Return the most recent entries (tail of the file)
+      const entries = allEntries.slice(-limit);
 
-      res.json({ entries: sliced, total });
+      res.json({ entries, total });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getAlerts } from '../api.js'
+import { colors, radius, fontSize, fontWeight } from '../theme.js'
 
 export default function AlertBadge() {
   const [count, setCount] = useState(0)
@@ -34,14 +35,16 @@ export default function AlertBadge() {
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#e94560',
+      background: colors.accent.red,
       color: '#fff',
-      borderRadius: '10px',
-      padding: '1px 6px',
-      fontSize: '11px',
-      fontWeight: 600,
+      borderRadius: radius.pill,
+      padding: '1px 7px',
+      fontSize: fontSize.xs,
+      fontWeight: fontWeight.bold,
       minWidth: '18px',
-      marginLeft: '6px',
+      marginLeft: '8px',
+      boxShadow: `0 0 8px ${colors.accent.red}44`,
+      lineHeight: 1.4,
     }}>
       {count}
     </span>

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getDateRange } from '../dateRange.js';
 
 /**
  * Factory function that returns an Express Router for GPU-related routes.
@@ -90,12 +91,7 @@ export function gpusRouter(db) {
         return res.status(400).json({ error: 'gpuIndex must be an integer' });
       }
 
-      const now = new Date();
-      const defaultFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-      const defaultTo = now.toISOString();
-
-      const from = req.query.from || defaultFrom;
-      const to = req.query.to || defaultTo;
+      const { from, to } = getDateRange(req.query);
 
       const rows = db.prepare(`
         SELECT ts_utc, gpu_util_pct, mem_util_pct, mem_used_mb, mem_total_mb, temp_c

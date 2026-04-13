@@ -1,0 +1,14 @@
+{
+  "servers": [
+    {
+      "name": "gpu-server-1",
+      "hostname": "gpu-server-1",
+      "ssh_user": "your_username",
+      "ssh_key_path": "~/.ssh/id_ed25519",
+      "enabled": true
+    }
+  ],
+  "interval_seconds": 60,
+  "log_dir": "./logs",
+  "retention_days": 30
+}

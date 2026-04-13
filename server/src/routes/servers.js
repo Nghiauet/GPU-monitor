@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getDateRange } from '../dateRange.js';
 import { readFileSync, writeFileSync } from 'fs';
 
 /**
@@ -122,12 +123,7 @@ export function serversRouter(db, configPath) {
   router.get('/:name/history', (req, res) => {
     try {
       const { name } = req.params;
-      const now = new Date();
-      const defaultFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-      const defaultTo = now.toISOString();
-
-      const from = req.query.from || defaultFrom;
-      const to = req.query.to || defaultTo;
+      const { from, to } = getDateRange(req.query);
 
       const rows = db.prepare(`
         SELECT ts_utc, load_1, load_5, load_15, cpu_user_pct, cpu_system_pct, cpu_idle_pct,
@@ -157,6 +153,15 @@ export function serversRouter(db, configPath) {
       if (!name || !hostname || !ssh_user || !ssh_key_path) {
         return res.status(400).json({
           error: 'Missing required fields: name, hostname, ssh_user, ssh_key_path',
+        });
+      }
+
+      // Validate field format to prevent injection into shell/SSH commands
+      const safeNameRe = /^[a-zA-Z0-9._-]+$/;
+      const safePathRe = /^[a-zA-Z0-9._~\/-]+$/;
+      if (!safeNameRe.test(name) || !safeNameRe.test(hostname) || !safeNameRe.test(ssh_user) || !safePathRe.test(ssh_key_path)) {
+        return res.status(400).json({
+          error: 'Fields contain invalid characters. Use only alphanumeric, dots, hyphens, underscores (paths may include ~, /).',
         });
       }
 
@@ -200,8 +205,28 @@ export function serversRouter(db, configPath) {
         return res.status(404).json({ error: `Server '${name}' not found` });
       }
 
-      // Merge: do not allow changing the name via body
-      const updated = { ...config.servers[idx], ...req.body, name };
+      // Whitelist allowed fields to prevent arbitrary key injection
+      const { hostname, ssh_user, ssh_key_path, enabled } = req.body;
+
+      // Validate field format to prevent injection into shell/SSH commands
+      const safeNameRe = /^[a-zA-Z0-9._-]+$/;
+      const safePathRe = /^[a-zA-Z0-9._~\/-]+$/;
+      if (
+        (hostname !== undefined && !safeNameRe.test(hostname)) ||
+        (ssh_user !== undefined && !safeNameRe.test(ssh_user)) ||
+        (ssh_key_path !== undefined && !safePathRe.test(ssh_key_path))
+      ) {
+        return res.status(400).json({
+          error: 'Fields contain invalid characters. Use only alphanumeric, dots, hyphens, underscores (paths may include ~, /).',
+        });
+      }
+
+      const updated = { ...config.servers[idx] };
+      if (hostname !== undefined) updated.hostname = hostname;
+      if (ssh_user !== undefined) updated.ssh_user = ssh_user;
+      if (ssh_key_path !== undefined) updated.ssh_key_path = ssh_key_path;
+      if (enabled !== undefined) updated.enabled = Boolean(enabled);
+      updated.name = name;
       config.servers[idx] = updated;
       writeConfig(config);
 

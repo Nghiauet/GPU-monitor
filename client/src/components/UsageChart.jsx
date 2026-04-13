@@ -8,8 +8,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
-
-const COLORS = ['#e94560', '#4ecca3', '#4fc3f7', '#f5a623', '#bb86fc']
+import { colors, CHART_COLORS, radius, fontSize, shadow } from '../theme.js'
 
 function formatTick(ts) {
   if (!ts) return ''
@@ -25,32 +24,37 @@ export default function UsageChart({ data = [], lines = [], height = 300 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#2a3a5c" />
+        <CartesianGrid strokeDasharray="3 3" stroke={colors.border.default} opacity={0.5} />
         <XAxis
           dataKey="ts"
           tickFormatter={formatTick}
-          stroke="#444"
-          tick={{ fill: '#888', fontSize: 11 }}
+          stroke={colors.border.default}
+          tick={{ fill: colors.text.muted, fontSize: 11 }}
           minTickGap={40}
+          axisLine={{ stroke: colors.border.default }}
         />
         <YAxis
-          stroke="#444"
-          tick={{ fill: '#888', fontSize: 11 }}
-          width={40}
+          stroke={colors.border.default}
+          tick={{ fill: colors.text.muted, fontSize: 11 }}
+          width={45}
+          axisLine={{ stroke: colors.border.default }}
         />
         <Tooltip
           contentStyle={{
-            background: '#16213e',
-            border: '1px solid #2a3a5c',
-            borderRadius: '6px',
-            fontSize: '12px',
-            color: '#e0e0e0',
+            background: colors.bg.secondary,
+            border: `1px solid ${colors.border.light}`,
+            borderRadius: radius.lg,
+            fontSize: fontSize.base,
+            color: colors.text.primary,
+            boxShadow: shadow.lg,
+            padding: '10px 14px',
           }}
-          labelStyle={{ color: '#888' }}
+          labelStyle={{ color: colors.text.secondary, marginBottom: 4 }}
           labelFormatter={(v) => formatTick(v)}
+          cursor={{ stroke: colors.border.light }}
         />
         <Legend
-          wrapperStyle={{ fontSize: '12px', color: '#888', paddingTop: '8px' }}
+          wrapperStyle={{ fontSize: fontSize.base, color: colors.text.secondary, paddingTop: '12px' }}
         />
         {lines.map(({ key, label }, i) => (
           <Line
@@ -58,7 +62,7 @@ export default function UsageChart({ data = [], lines = [], height = 300 }) {
             type="monotone"
             dataKey={key}
             name={label || key}
-            stroke={COLORS[i % COLORS.length]}
+            stroke={CHART_COLORS[i % CHART_COLORS.length]}
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}

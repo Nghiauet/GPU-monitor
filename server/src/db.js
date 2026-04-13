@@ -96,16 +96,6 @@ function initSchema(db) {
       task_sleeping   INTEGER NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS servers (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      name         TEXT    UNIQUE NOT NULL,
-      hostname     TEXT    NOT NULL,
-      ssh_user     TEXT    NOT NULL,
-      ssh_key_path TEXT    NOT NULL,
-      enabled      INTEGER NOT NULL DEFAULT 1,
-      created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
-
     CREATE TABLE IF NOT EXISTS alert_rules (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       name           TEXT    NOT NULL,

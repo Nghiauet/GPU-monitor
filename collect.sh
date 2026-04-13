@@ -178,8 +178,14 @@ parse_config() {
   ' "${CONFIG_PATH}"
 }
 
-# Load config into variables
-eval "$(parse_config)"
+# Load config into variables — sanitize values to prevent injection via eval.
+# The awk parser outputs KEY=VALUE lines; strip any characters that could break
+# out of the assignment (semicolons, backticks, $(...), etc.).
+_raw_config="$(parse_config)"
+# Only allow lines matching VAR=VALUE or VAR[N]=VALUE with safe characters.
+# Values may be unquoted (from awk output). Reject lines with shell metacharacters.
+_sanitized_config="$(printf '%s\n' "${_raw_config}" | grep -E '^[A-Za-z_][A-Za-z0-9_]*(\[[0-9]+\])?=[A-Za-z0-9_.~/@: -]*$' || true)"
+eval "${_sanitized_config}"
 
 # Resolve LOG_DIR relative to script dir if it starts with ./
 if [[ "${LOG_DIR}" == ./* ]]; then
@@ -191,7 +197,7 @@ SSH_USER_GLOBAL="${SSH_USER_GLOBAL:-vagrant}"
 SSH_KEY_GLOBAL="${SSH_KEY_GLOBAL:-~/.ssh/id_rsa}"
 
 # ---------------------------------------------------------------------------
-# SSH helper using ControlMaster multiplexing
+# SSH helpers
 # ---------------------------------------------------------------------------
 
 # Resolve ~ in a path
@@ -203,26 +209,14 @@ resolve_path() {
   printf '%s' "$p"
 }
 
-# SSH base options
-ssh_opts() {
-  local key="$1"
-  local ctl="$2"
-  key="$(resolve_path "${key}")"
-  printf -- '-o ConnectTimeout=10 -o StrictHostKeyChecking=no -o BatchMode=yes'
-  printf -- ' -o ControlMaster=auto -o ControlPath=%s -o ControlPersist=60' "${ctl}"
-  printf -- ' -i %s' "${key}"
-}
-
 # Run a command on a remote server, capturing stdout; returns non-zero on SSH failure
 ssh_run() {
   local user="$1"
   local host="$2"
   local key="$3"
-  local ctl="$4"
-  local cmd="$5"
+  local cmd="$4"
   local key_resolved
   key_resolved="$(resolve_path "${key}")"
-  # shellcheck disable=SC2086
   ssh -o ConnectTimeout=10 \
       -o StrictHostKeyChecking=no \
       -o BatchMode=yes \
@@ -231,18 +225,20 @@ ssh_run() {
       "${cmd}"
 }
 
-# Close a ControlMaster socket
-ssh_close() {
-  local user="$1"
-  local host="$2"
-  local key="$3"
-  local ctl="$4"
-  # ControlMaster disabled for Docker compatibility; nothing to close
-  true
+# Extract a section from delimited output (between start and end marker lines)
+extract_section() {
+  local output="$1"
+  local start="$2"
+  local end="$3"
+  printf '%s\n' "${output}" | awk -v s="${start}" -v e="${end}" '
+    $0 == s { found=1; next }
+    $0 == e { found=0 }
+    found { print }
+  '
 }
 
 # ---------------------------------------------------------------------------
-# Per-server collection
+# Per-server collection (single SSH connection per server, parallel across servers)
 # ---------------------------------------------------------------------------
 
 collect_server() {
@@ -260,35 +256,59 @@ collect_server() {
   local out_dir="${LOG_DIR}/${today}/${svr_name}"
   mkdir -p "${out_dir}"
 
-  # ControlMaster socket path (in /tmp)
-  local ctl_socket
-  ctl_socket="/tmp/gpu_monitor_ssh_${svr_name}_$$"
+  # -------------------------------------------------------------------------
+  # Single SSH connection: gather all remote data in one shot
+  # (hostname, nvidia-smi devices, nvidia-smi procs, ps, top, meminfo)
+  # -------------------------------------------------------------------------
+  local key_resolved
+  key_resolved="$(resolve_path "${svr_key}")"
 
-  # -------------------------------------------------------------------------
-  # Step 1: Open SSH connection + get hostname
-  # -------------------------------------------------------------------------
-  local remote_hostname
-  remote_hostname="$(ssh_run "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}" "hostname")" || {
+  local raw_output
+  raw_output="$(ssh -o ConnectTimeout=10 \
+      -o StrictHostKeyChecking=no \
+      -o BatchMode=yes \
+      -i "${key_resolved}" \
+      "${svr_user}@${svr_host}" \
+      'bash -s' <<'REMOTE_SCRIPT'
+echo '===HOSTNAME==='
+hostname
+echo '===GPU_DEVICES==='
+nvidia-smi --query-gpu=index,name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,gpu_uuid --format=csv,noheader,nounits 2>&1
+echo '===GPU_PROCS==='
+GPU_PROCS=$(nvidia-smi --query-compute-apps=pid,used_gpu_memory,gpu_uuid --format=csv,noheader,nounits 2>&1)
+echo "$GPU_PROCS"
+echo '===PS==='
+if [ -n "$GPU_PROCS" ] && ! echo "$GPU_PROCS" | grep -qi 'error\|command not found\|No such file'; then
+  PIDS=$(echo "$GPU_PROCS" | awk -F, '{gsub(/^ +| +$/,"",$1); if ($1 ~ /^[0-9]+$/) print $1}' | paste -sd, -)
+  if [ -n "$PIDS" ]; then
+    ps -p "$PIDS" -o pid=,user=,pcpu=,pmem=,etime=,stat=,comm= --no-headers 2>/dev/null || true
+  fi
+fi
+echo '===TOP==='
+top -bn1 2>&1
+echo '===MEMINFO==='
+cat /proc/meminfo 2>/dev/null || true
+echo '===END==='
+REMOTE_SCRIPT
+  )" || {
     log_error "${svr_name}" "ssh_connect" "SSH connection failed to ${svr_host}"
     return 1
   }
-  remote_hostname="${remote_hostname%%$'\n'*}"  # first line only
 
-  # -------------------------------------------------------------------------
-  # Step 2: GPU devices
-  # -------------------------------------------------------------------------
-  local gpu_raw=""
-  gpu_raw="$(ssh_run "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}" \
-    "nvidia-smi --query-gpu=index,name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,gpu_uuid --format=csv,noheader,nounits 2>&1")" || {
-    log_error "${svr_name}" "nvidia_smi_devices" "nvidia-smi device query failed"
-    ssh_close "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}"
-    return 1
-  }
+  # Extract sections from combined output
+  local remote_hostname gpu_raw proc_raw ps_raw top_raw meminfo_raw
+  remote_hostname="$(extract_section "${raw_output}" '===HOSTNAME===' '===GPU_DEVICES===')"
+  gpu_raw="$(extract_section "${raw_output}" '===GPU_DEVICES===' '===GPU_PROCS===')"
+  proc_raw="$(extract_section "${raw_output}" '===GPU_PROCS===' '===PS===')"
+  ps_raw="$(extract_section "${raw_output}" '===PS===' '===TOP===')"
+  top_raw="$(extract_section "${raw_output}" '===TOP===' '===MEMINFO===')"
+  meminfo_raw="$(extract_section "${raw_output}" '===MEMINFO===' '===END===')"
+
+  remote_hostname="${remote_hostname%%$'\n'*}"  # first line only
 
   # Check if nvidia-smi returned an error string (not CSV data)
   if echo "${gpu_raw}" | grep -qi "error\|command not found\|No such file\|failed"; then
     log_error "${svr_name}" "nvidia_smi_devices" "nvidia-smi not available: ${gpu_raw}"
-    ssh_close "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}"
     return 1
   fi
 
@@ -339,12 +359,8 @@ collect_server() {
   printf '%s' "${gpu_device_jsonl}" > "${out_dir}/gpu_device.jsonl"
 
   # -------------------------------------------------------------------------
-  # Step 3: GPU processes (compute apps)
+  # Parse GPU processes (data already collected in single SSH session)
   # -------------------------------------------------------------------------
-  local proc_raw=""
-  proc_raw="$(ssh_run "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}" \
-    "nvidia-smi --query-compute-apps=pid,used_gpu_memory,gpu_uuid --format=csv,noheader,nounits 2>&1")" || true
-
   # If proc_raw contains error message or is empty, treat as no processes
   if echo "${proc_raw}" | grep -qi "error\|command not found\|No such file"; then
     proc_raw=""
@@ -371,29 +387,19 @@ collect_server() {
   fi
 
   # -------------------------------------------------------------------------
-  # Step 4: ps for discovered PIDs
+  # Parse ps output (data already collected in single SSH session)
   # -------------------------------------------------------------------------
-  # Map: pid -> "user cpu_pct mem_pct elapsed state cmd"
   declare -A pid_ps=()
 
-  if [[ ${#pids[@]} -gt 0 ]]; then
-    local pid_list
-    pid_list="$(IFS=','; printf '%s' "${pids[*]}")"
-    local ps_raw=""
-    # ps output: pid, user, %cpu, %mem, etime (elapsed), state, and rest=command
-    ps_raw="$(ssh_run "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}" \
-      "ps -p ${pid_list} -o pid=,user=,pcpu=,pmem=,etime=,stat=,comm= --no-headers 2>/dev/null || true")" || true
-
-    if [[ -n "${ps_raw}" ]]; then
-      while IFS= read -r line; do
-        [[ -z "${line}" ]] && continue
-        read -r p_pid p_user p_cpu p_mem p_etime p_stat p_comm <<< "${line}"
-        # elapsed: convert [[DD-]HH:]MM:SS to seconds
-        local elapsed_sec=0
-        elapsed_sec="$(etime_to_seconds "${p_etime}")"
-        pid_ps["${p_pid}"]="${p_user}|${p_cpu}|${p_mem}|${elapsed_sec}|${p_stat}|${p_comm}"
-      done <<< "${ps_raw}"
-    fi
+  if [[ -n "${ps_raw}" ]]; then
+    while IFS= read -r line; do
+      [[ -z "${line}" ]] && continue
+      read -r p_pid p_user p_cpu p_mem p_etime p_stat p_comm <<< "${line}"
+      # elapsed: convert [[DD-]HH:]MM:SS to seconds
+      local elapsed_sec=0
+      elapsed_sec="$(etime_to_seconds "${p_etime}")"
+      pid_ps["${p_pid}"]="${p_user}|${p_cpu}|${p_mem}|${elapsed_sec}|${p_stat}|${p_comm}"
+    done <<< "${ps_raw}"
   fi
 
   # -------------------------------------------------------------------------
@@ -505,22 +511,8 @@ collect_server() {
   printf '%s' "${user_rollup_jsonl}" > "${out_dir}/user_rollup.jsonl"
 
   # -------------------------------------------------------------------------
-  # Step 7: host_summary.jsonl — top -bn1
+  # Parse host summary (top + meminfo data already collected)
   # -------------------------------------------------------------------------
-  local top_raw=""
-  top_raw="$(ssh_run "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}" \
-    "top -bn1 2>&1")" || {
-    log_error "${svr_name}" "top" "top command failed"
-    ssh_close "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}"
-    return 1
-  }
-
-  # Also get /proc/meminfo for reliable mem stats
-  local meminfo_raw=""
-  meminfo_raw="$(ssh_run "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}" \
-    "cat /proc/meminfo 2>/dev/null || true")" || true
-
-  # Parse top output
   # Tasks line: "Tasks: 123 total,   1 running, 122 sleeping,   0 stopped,   0 zombie"
   local task_total=0 task_running=0 task_sleeping=0
   local cpu_user=0 cpu_system=0 cpu_idle=0
@@ -532,21 +524,21 @@ collect_server() {
     # Load average (from top header or uptime line)
     if echo "${line}" | grep -q "load average"; then
       # "load average: 0.00, 0.01, 0.05"
-      read -r load_1 load_5 load_15 <<< "$(echo "${line}" | grep -oP 'load average:.*' | sed 's/load average://;s/,/ /g' | awk '{print $1,$2,$3}')"
+      read -r load_1 load_5 load_15 <<< "$(echo "${line}" | sed -n 's/.*load average:[[:space:]]*//p' | sed 's/,/ /g' | awk '{print $1,$2,$3}')"
     fi
 
     # Tasks line
     if echo "${line}" | grep -qi "^tasks\|^Threads"; then
-      task_total="$(echo "${line}" | grep -oP '\d+ total' | grep -oP '\d+'  || echo 0)"
-      task_running="$(echo "${line}" | grep -oP '\d+ running' | grep -oP '\d+' || echo 0)"
-      task_sleeping="$(echo "${line}" | grep -oP '\d+ sleeping' | grep -oP '\d+' || echo 0)"
+      task_total="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="total"){print $i; exit}}' || echo 0)"
+      task_running="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="running,"){print $i; exit} else if($(i+1)=="running"){print $i; exit}}' || echo 0)"
+      task_sleeping="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="sleeping,"){print $i; exit} else if($(i+1)=="sleeping"){print $i; exit}}' || echo 0)"
     fi
 
     # CPU line: "%Cpu(s):  x.x us,  x.x sy, ..."
     if echo "${line}" | grep -qi "^%cpu\|cpu(s)"; then
-      cpu_user="$(echo "${line}" | grep -oP '[\d.]+(?= us)' || echo 0)"
-      cpu_system="$(echo "${line}" | grep -oP '[\d.]+(?= sy)' || echo 0)"
-      cpu_idle="$(echo "${line}" | grep -oP '[\d.]+(?= id)' || echo 0)"
+      cpu_user="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="us," || $(i+1)=="us"){print $i; exit}}' || echo 0)"
+      cpu_system="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="sy," || $(i+1)=="sy"){print $i; exit}}' || echo 0)"
+      cpu_idle="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="id," || $(i+1)=="id"){print $i; exit}}' || echo 0)"
     fi
 
     # MiB Mem line: "MiB Mem :  15987.9 total,    234.5 free,   8765.1 used, ..."
@@ -554,9 +546,9 @@ collect_server() {
       local unit=1
       echo "${line}" | grep -qi "kib" && unit=1024
       local mt mf mu
-      mt="$(echo "${line}" | grep -oP '[\d.]+(?= total)' || echo 0)"
-      mf="$(echo "${line}" | grep -oP '[\d.]+(?= free)' || echo 0)"
-      mu="$(echo "${line}" | grep -oP '[\d.]+(?= used)' || echo 0)"
+      mt="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="total," || $(i+1)=="total"){print $i; exit}}' || echo 0)"
+      mf="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="free," || $(i+1)=="free"){print $i; exit}}' || echo 0)"
+      mu="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="used," || $(i+1)=="used"){print $i; exit}}' || echo 0)"
       # convert from MiB to MiB (already MiB) or KiB to MiB
       if [[ "${unit}" -eq 1024 ]]; then
         mem_total="$(awk "BEGIN{printf \"%.1f\", ${mt}/1024}")"
@@ -574,8 +566,8 @@ collect_server() {
       local unit=1
       echo "${line}" | grep -qi "kib" && unit=1024
       local st sf su
-      st="$(echo "${line}" | grep -oP '[\d.]+(?= total)' || echo 0)"
-      su="$(echo "${line}" | grep -oP '[\d.]+(?= used)' || echo 0)"
+      st="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="total," || $(i+1)=="total"){print $i; exit}}' || echo 0)"
+      su="$(echo "${line}" | awk '{for(i=1;i<=NF;i++) if($(i+1)=="used," || $(i+1)=="used"){print $i; exit}}' || echo 0)"
       if [[ "${unit}" -eq 1024 ]]; then
         swap_total="$(awk "BEGIN{printf \"%.1f\", ${st}/1024}")"
         swap_used="$(awk "BEGIN{printf \"%.1f\", ${su}/1024}")"
@@ -627,11 +619,6 @@ collect_server() {
 
   printf '%s\n' "${host_summary_rec}" > "${out_dir}/host_summary.jsonl"
 
-  # -------------------------------------------------------------------------
-  # Cleanup SSH connection
-  # -------------------------------------------------------------------------
-  ssh_close "${svr_user}" "${svr_host}" "${svr_key}" "${ctl_socket}"
-
   log_info "${svr_name}" "collect" "collection complete → ${out_dir}"
   return 0
 }
@@ -667,23 +654,34 @@ etime_to_seconds() {
 }
 
 # ---------------------------------------------------------------------------
-# Main loop
+# Main loop (servers collected in parallel)
 # ---------------------------------------------------------------------------
 main() {
   log_info "collector" "start" "collect.sh starting, config=${CONFIG_PATH}"
 
-  local any_failure=0
+  local child_pids=()
+  local child_names=()
 
   for (( i=0; i<SERVER_COUNT; i++ )); do
     # Bash array-style variable names from eval'd config
     local svr_name svr_host svr_ssh_user svr_ssh_key svr_enabled
 
-    # Use indirect references via eval (safe — values come from our own awk parser)
+    # Use indirect references via eval (values are sanitized during config load)
     eval "svr_name=\"\${SERVER_NAME[$i]}\""
     eval "svr_host=\"\${SERVER_HOST[$i]}\""
     eval "svr_ssh_user=\"\${SERVER_SSH_USER[$i]}\""
     eval "svr_ssh_key=\"\${SERVER_SSH_KEY[$i]}\""
     eval "svr_enabled=\"\${SERVER_ENABLED[$i]:-true}\""
+
+    # Validate that server values contain only safe characters (alphanumeric, -, _, ., /, ~)
+    if [[ "${svr_host}" =~ [^a-zA-Z0-9._@~/-] ]]; then
+      log_error "${svr_name}" "validate" "hostname contains unsafe characters: ${svr_host}"
+      continue
+    fi
+    if [[ "${svr_ssh_user}" =~ [^a-zA-Z0-9._-] ]]; then
+      log_error "${svr_name}" "validate" "ssh_user contains unsafe characters: ${svr_ssh_user}"
+      continue
+    fi
 
     # Fall back to global SSH credentials if per-server not set
     [[ -z "${svr_ssh_user}" ]] && svr_ssh_user="${SSH_USER_GLOBAL}"
@@ -701,24 +699,45 @@ main() {
       continue
     fi
 
-    collect_server "${svr_name}" "${svr_host}" "${svr_ssh_user}" "${svr_ssh_key}" || {
-      log_error "${svr_name}" "collect" "collection failed for ${svr_name}"
-      any_failure=1
-    }
-
-    # Unset per-iteration associative arrays to avoid bleed-over
-    unset pid_gpu_mem pid_gpu_uuid pid_ps
-    unset user_proc_count user_gpu_count user_gpu_mem user_cpu_sum user_cpu_max user_gpu_set
+    # Run each server collection in parallel (each in its own subshell)
+    collect_server "${svr_name}" "${svr_host}" "${svr_ssh_user}" "${svr_ssh_key}" &
+    child_pids+=($!)
+    child_names+=("${svr_name}")
   done
 
-  if [[ "${any_failure}" -eq 1 ]]; then
+  # Wait for all servers and track failures
+  local any_failure=0
+  for idx in "${!child_pids[@]}"; do
+    wait "${child_pids[$idx]}" || {
+      log_error "${child_names[$idx]}" "collect" "collection failed for ${child_names[$idx]}"
+      any_failure=1
+    }
+  done
+
+  # Check if at least one server produced output
+  local any_success=0
+  for (( j=0; j<SERVER_COUNT; j++ )); do
+    eval "local chk_enabled=\"\${SERVER_ENABLED[$j]:-true}\""
+    [[ "${chk_enabled}" == "false" ]] && continue
+    eval "local chk_name=\"\${SERVER_NAME[$j]}\""
+    [[ -z "${chk_name}" ]] && continue
+    local chk_dir="${LOG_DIR}/$(TODAY)/${chk_name}"
+    if [[ -f "${chk_dir}/gpu_device.jsonl" ]]; then
+      any_success=1
+      break
+    fi
+  done
+
+  if [[ "${any_failure}" -eq 1 && "${any_success}" -eq 0 ]]; then
+    log_info "collector" "done" "all servers failed"
+    exit 1
+  elif [[ "${any_failure}" -eq 1 ]]; then
     log_info "collector" "done" "completed with partial failures"
+    exit 0
   else
     log_info "collector" "done" "all servers collected successfully"
+    exit 0
   fi
-
-  # Always exit 0 — partial failure tolerant
-  exit 0
 }
 
 main

@@ -1,6 +1,14 @@
 node_modules/
 logs/
 *.db
+*.db-shm
+*.db-wal
 collector.log
 client/dist/
 .superpowers/
+.env
+config.json
+data/
+*.png
+.playwright-mcp/
+.codex

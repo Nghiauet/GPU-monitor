@@ -1,19 +1,30 @@
+import { colors } from '../theme.js'
+
 const COLORS = {
-  green: '#4ecca3',
-  yellow: '#f5a623',
-  red: '#e94560',
-  gray: '#666',
+  green: colors.status.healthy,
+  blue: colors.status.info,
+  yellow: colors.status.warning,
+  red: colors.status.critical,
+  gray: colors.status.inactive,
 }
 
-export default function StatusIndicator({ color = 'gray', size = 10 }) {
+export default function StatusIndicator({ color = 'gray', size = 10, pulse = false }) {
+  const bg = COLORS[color] || color
+  const isLive = pulse || color === 'green' || color === 'blue'
+
   return (
-    <span style={{
-      display: 'inline-block',
-      width: size,
-      height: size,
-      borderRadius: '50%',
-      background: COLORS[color] || color,
-      flexShrink: 0,
-    }} />
+    <span
+      className={isLive ? 'status-pulse' : undefined}
+      style={{
+        display: 'inline-block',
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: bg,
+        flexShrink: 0,
+        position: 'relative',
+        boxShadow: isLive ? `0 0 6px ${bg}66` : undefined,
+      }}
+    />
   )
 }

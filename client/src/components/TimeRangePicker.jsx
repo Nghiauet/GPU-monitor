@@ -1,3 +1,5 @@
+import { colors, radius, fontSize, fontWeight, transition } from '../theme.js'
+
 const RANGES = [
   { label: '1h', hours: 1 },
   { label: '6h', hours: 6 },
@@ -8,7 +10,13 @@ const RANGES = [
 
 export default function TimeRangePicker({ value, onChange }) {
   return (
-    <div style={{ display: 'flex', gap: '2px' }}>
+    <div style={{
+      display: 'inline-flex',
+      background: colors.bg.input,
+      borderRadius: radius.md,
+      padding: '2px',
+      border: `1px solid ${colors.border.default}`,
+    }}>
       {RANGES.map(({ label, hours }) => {
         const active = value === hours
         return (
@@ -16,15 +24,16 @@ export default function TimeRangePicker({ value, onChange }) {
             key={hours}
             onClick={() => onChange(hours)}
             style={{
-              padding: '4px 10px',
-              background: active ? '#e94560' : '#16213e',
-              color: active ? '#fff' : '#888',
-              border: '1px solid',
-              borderColor: active ? '#e94560' : '#2a3a5c',
-              borderRadius: '4px',
-              fontSize: '12px',
+              padding: '5px 12px',
+              background: active ? colors.accent.red : 'transparent',
+              color: active ? '#fff' : colors.text.secondary,
+              border: 'none',
+              borderRadius: radius.sm,
+              fontSize: fontSize.base,
+              fontWeight: active ? fontWeight.semibold : fontWeight.normal,
               cursor: 'pointer',
-              transition: 'all 0.15s',
+              transition: `all ${transition.fast}`,
+              lineHeight: 1.2,
             }}
           >
             {label}

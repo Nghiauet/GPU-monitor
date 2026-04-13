@@ -128,7 +128,16 @@ export function alertsRouter(db) {
         return res.status(404).json({ error: `Alert rule with id ${id} not found` });
       }
 
-      const merged = { ...existing, ...req.body, id };
+      // Whitelist allowed fields to prevent arbitrary key injection
+      const { name: rName, condition_type, target, threshold, duration_min, enabled } = req.body;
+      const merged = { ...existing };
+      if (rName !== undefined) merged.name = rName;
+      if (condition_type !== undefined) merged.condition_type = condition_type;
+      if (target !== undefined) merged.target = target;
+      if (threshold !== undefined) merged.threshold = threshold;
+      if (duration_min !== undefined) merged.duration_min = duration_min;
+      if (enabled !== undefined) merged.enabled = enabled;
+      merged.id = id;
 
       // Normalize enabled to 0/1
       if (merged.enabled !== undefined) {

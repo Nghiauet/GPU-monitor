@@ -1,41 +1,42 @@
-# --- Build stage: compile React frontend ---
-FROM node:20-alpine AS builder
+# --- Stage 1: Build React frontend ---
+FROM node:20-alpine AS client-builder
 
 WORKDIR /app/client
 COPY client/package.json client/package-lock.json* ./
-RUN npm install
-
+RUN npm ci
 COPY client/ ./
 RUN npm run build
 
-# --- Production stage ---
-FROM node:20-slim
+# --- Stage 2: Install server deps (native modules need build tools on Alpine) ---
+FROM node:20-alpine AS server-deps
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssh-client bash gawk && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache python3 make g++
+WORKDIR /app/server
+COPY server/package.json server/package-lock.json* ./
+RUN npm ci --omit=dev && rm -rf /root/.npm
+
+# --- Stage 3: Production image ---
+FROM node:20-alpine
+
+RUN apk add --no-cache openssh-client bash gawk
 
 WORKDIR /app
 
-# Install server dependencies
-COPY server/package.json server/package-lock.json* ./server/
-RUN cd server && npm install --omit=dev
-
-# Copy server source
+# Server dependencies (with pre-compiled native modules)
+COPY --from=server-deps /app/server/node_modules ./server/node_modules/
+COPY server/package.json ./server/
 COPY server/src/ ./server/src/
 
-# Copy built frontend
-COPY --from=builder /app/client/dist ./client/dist/
+# Built frontend
+COPY --from=client-builder /app/client/dist ./client/dist/
 
-# Copy collector and entrypoint scripts
-COPY collect.sh ./
-COPY entrypoint.sh ./
-RUN chmod +x entrypoint.sh
+# Collector and entrypoint
+COPY collect.sh entrypoint.sh ./
+RUN chmod +x entrypoint.sh collect.sh
 
 # Default config (overridden by volume mount)
 COPY config.json ./
 
-# Create directories for persistent data
 RUN mkdir -p /app/logs /data
 
 ENV NODE_ENV=production
